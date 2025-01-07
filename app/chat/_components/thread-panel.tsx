@@ -1,22 +1,32 @@
 "use client"
 
 import {
+  addDirectMessageReactionAction,
   createDirectThreadMessageAction,
-  getDirectThreadMessagesAction
+  getDirectThreadMessagesAction,
+  removeDirectMessageReactionAction
 } from "@/actions/db/direct-messages-actions"
 import {
+  addReactionAction,
   createThreadMessageAction,
-  getThreadMessagesAction
+  getThreadMessagesAction,
+  removeReactionAction
 } from "@/actions/db/messages-actions"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
-import { X } from "lucide-react"
+import { Smile, X } from "lucide-react"
 import React, { useCallback, useEffect, useState } from "react"
+import { EmojiPicker } from "./emoji-picker"
 
 interface ThreadPanelProps {
   type: "channel" | "direct"
@@ -51,6 +61,7 @@ export function ThreadPanel({
     (SelectMessage | SelectDirectMessage)[]
   >([])
   const [newReply, setNewReply] = useState("")
+  const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
 
   // We only care about reloading if the parentMessage's ID changes.
   // Make sure the parent doesn't constantly recreate `parentMessage`.
@@ -168,6 +179,83 @@ export function ThreadPanel({
     [newReply, parentMessage, type, userId]
   )
 
+  async function handleReaction(messageId: string, emoji: string) {
+    setOpenEmojiPicker(null)
+
+    if (type === "channel") {
+      const message =
+        messageId === parentMessage.id
+          ? (parentMessage as SelectMessage)
+          : (replies.find(m => m.id === messageId) as SelectMessage)
+      const reactions = (message.reactions || {}) as Record<string, string[]>
+      const hasReacted = reactions[emoji]?.includes(userId)
+
+      if (hasReacted) {
+        await removeReactionAction(messageId, userId, emoji)
+      } else {
+        await addReactionAction(messageId, userId, emoji)
+      }
+    } else {
+      const message =
+        messageId === parentMessage.id
+          ? (parentMessage as SelectDirectMessage)
+          : (replies.find(m => m.id === messageId) as SelectDirectMessage)
+      const reactions = (message.reactions || {}) as Record<string, string[]>
+      const hasReacted = reactions[emoji]?.includes(userId)
+
+      if (hasReacted) {
+        await removeDirectMessageReactionAction(messageId, userId, emoji)
+      } else {
+        await addDirectMessageReactionAction(messageId, userId, emoji)
+      }
+    }
+  }
+
+  const MessageReactions = ({
+    message
+  }: {
+    message: SelectMessage | SelectDirectMessage
+  }) => (
+    <div className="mt-2 flex items-center gap-2">
+      <Popover
+        open={openEmojiPicker === message.id}
+        onOpenChange={open => setOpenEmojiPicker(open ? message.id : null)}
+      >
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="size-8 rounded-full p-0">
+            <Smile className="size-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0">
+          <EmojiPicker
+            onEmojiSelect={emoji => handleReaction(message.id, emoji)}
+          />
+        </PopoverContent>
+      </Popover>
+      {Object.entries(
+        (message.reactions as Record<string, string[]>) || {}
+      ).map(([emoji, users]) => (
+        <Button
+          key={emoji}
+          variant="ghost"
+          size="sm"
+          className="h-6 gap-1 px-2"
+          onClick={() => handleReaction(message.id, emoji)}
+        >
+          {emoji}
+          <span className="text-xs">{users.length}</span>
+        </Button>
+      ))}
+    </div>
+  )
+
+  const getUserId = (message: SelectMessage | SelectDirectMessage) => {
+    if ("userId" in message) {
+      return message.userId
+    }
+    return message.senderId
+  }
+
   /**
    * Render
    */
@@ -192,27 +280,22 @@ export function ThreadPanel({
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-semibold">
-                  {type === "direct"
-                    ? (parentMessage as SelectDirectMessage).senderUsername
-                    : (parentMessage as SelectMessage).username}
+                  {userMap[getUserId(parentMessage)]?.username || "Loading..."}
                 </span>
                 <span className="text-muted-foreground text-xs">
                   {format(new Date(parentMessage.createdAt), "p")}
                 </span>
               </div>
               <p className="mt-1">{parentMessage.content}</p>
+              <MessageReactions message={parentMessage} />
             </div>
           </div>
           <Separator />
 
           {/* Replies */}
           {replies.map(reply => {
-            // For direct messages we typically have senderId/senderUsername
-            const userKey =
-              type === "direct"
-                ? (reply as SelectDirectMessage).senderId
-                : (reply as SelectMessage).userId
-            const displayName = userMap[userKey]?.username || ""
+            const userKey = getUserId(reply)
+            const displayName = userMap[userKey]?.username || "Loading..."
 
             const date =
               typeof reply.createdAt === "string"
@@ -229,8 +312,7 @@ export function ThreadPanel({
                     </span>
                   </div>
                   <p className="mt-1">{reply.content}</p>
-                  {/* Potential: if you want to show real user’s displayName from userMap */}
-                  {/* <p>Posted by: {userMap[userKey]?.displayName || displayName}</p> */}
+                  <MessageReactions message={reply} />
                 </div>
               </div>
             )

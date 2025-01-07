@@ -203,27 +203,34 @@ export function Sidebar({ userId }: SidebarProps) {
 
   return (
     <div className="bg-muted/10 flex h-full w-60 flex-col border-r">
-      <div className="flex h-12 items-center justify-between border-b px-4">
-        <UserButton
-          appearance={{
-            elements: {
-              avatarBox: "h-8 w-8",
-              userButtonPopoverCard: "dark:bg-zinc-900",
-              userButtonPopoverActionButton: "dark:hover:bg-zinc-700",
-              userButtonPopoverActionButtonText: "dark:text-zinc-100",
-              userButtonPopoverFooter: "dark:border-zinc-700",
-              userPreviewMainIdentifier: "dark:text-zinc-100",
-              userPreviewSecondaryIdentifier: "dark:text-zinc-300",
-              userButtonBox: "dark:text-zinc-100"
-            }
-          }}
-          showName
-        />
-        <ThemeSwitcher />
+      <div className="flex h-12 items-center justify-center border-b px-4">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="size-5" />
+          <span className="font-semibold">ChatGenius</span>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 px-2">
-        <div className="mt-4">
+        <div className="flex items-center justify-between border-b p-4">
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "h-8 w-8",
+                userButtonPopoverCard: "dark:bg-zinc-900",
+                userButtonPopoverActionButton: "dark:hover:bg-zinc-700",
+                userButtonPopoverActionButtonText: "dark:text-zinc-100",
+                userButtonPopoverFooter: "dark:border-zinc-700",
+                userPreviewMainIdentifier: "dark:text-zinc-100",
+                userPreviewSecondaryIdentifier: "dark:text-zinc-300",
+                userButtonBox: "dark:text-zinc-100"
+              }
+            }}
+            showName
+          />
+          <ThemeSwitcher />
+        </div>
+
+        <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-sm font-semibold">Channels</h2>
             <Dialog
