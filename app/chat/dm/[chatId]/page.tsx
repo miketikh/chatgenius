@@ -44,7 +44,7 @@ export default async function DirectMessagePage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 items-center border-b px-4">
+      <div className="flex min-h-12 items-center border-b px-4">
         <div className="flex items-center">
           <div className="bg-primary/10 size-8 rounded-full" />
           <div className="ml-2">

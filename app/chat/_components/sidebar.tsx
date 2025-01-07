@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { ThemeSwitcher } from "@/components/utilities/theme-switcher"
 import { SelectChannel, SelectDirectChat, SelectUser } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { cn } from "@/lib/utils"
@@ -202,11 +203,23 @@ export function Sidebar({ userId }: SidebarProps) {
 
   return (
     <div className="bg-muted/10 flex h-full w-60 flex-col border-r">
-      <div className="flex h-12 items-center border-b px-4">
+      <div className="flex h-12 items-center justify-between border-b px-4">
         <UserButton
-          appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+          appearance={{
+            elements: {
+              avatarBox: "h-8 w-8",
+              userButtonPopoverCard: "dark:bg-zinc-900",
+              userButtonPopoverActionButton: "dark:hover:bg-zinc-700",
+              userButtonPopoverActionButtonText: "dark:text-zinc-100",
+              userButtonPopoverFooter: "dark:border-zinc-700",
+              userPreviewMainIdentifier: "dark:text-zinc-100",
+              userPreviewSecondaryIdentifier: "dark:text-zinc-300",
+              userButtonBox: "dark:text-zinc-100"
+            }
+          }}
           showName
         />
+        <ThemeSwitcher />
       </div>
 
       <ScrollArea className="flex-1 px-2">
