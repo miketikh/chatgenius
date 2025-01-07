@@ -12,11 +12,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  SelectDirectMessage,
-  SelectMessage,
-  SelectUser
-} from "@/db/schema"
+import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { X } from "lucide-react"
@@ -30,7 +26,9 @@ interface ThreadPanelProps {
 
   // New props for user caching (like in MessageList)
   userMap: Record<string, SelectUser>
-  bulkLoadUsers: (msgs: (SelectMessage | SelectDirectMessage)[]) => Promise<void>
+  bulkLoadUsers: (
+    msgs: (SelectMessage | SelectDirectMessage)[]
+  ) => Promise<void>
 }
 
 function transformMessage<T extends { createdAt?: string | Date }>(msg: T) {
@@ -49,7 +47,9 @@ export function ThreadPanel({
   userMap,
   bulkLoadUsers
 }: ThreadPanelProps) {
-  const [replies, setReplies] = useState<(SelectMessage | SelectDirectMessage)[]>([])
+  const [replies, setReplies] = useState<
+    (SelectMessage | SelectDirectMessage)[]
+  >([])
   const [newReply, setNewReply] = useState("")
 
   // We only care about reloading if the parentMessage's ID changes.
@@ -67,7 +67,11 @@ export function ThreadPanel({
         setReplies(prev => [...prev, transformed])
 
         // Also load user if missing
-        if (!userMap[transformed.userId || (transformed as SelectDirectMessage).senderId]) {
+        if (
+          !userMap[
+            transformed.userId || (transformed as SelectDirectMessage).senderId
+          ]
+        ) {
           await bulkLoadUsers([transformed])
         }
       }
@@ -75,15 +79,23 @@ export function ThreadPanel({
     [parentId, userMap, bulkLoadUsers]
   )
 
-  const handleReplyUpdate = useCallback((updated: SelectMessage | SelectDirectMessage) => {
-    setReplies(prev =>
-      prev.map(msg => (msg.id === updated.id ? transformMessage(updated) : msg))
-    )
-  }, [])
+  const handleReplyUpdate = useCallback(
+    (updated: SelectMessage | SelectDirectMessage) => {
+      setReplies(prev =>
+        prev.map(msg =>
+          msg.id === updated.id ? transformMessage(updated) : msg
+        )
+      )
+    },
+    []
+  )
 
-  const handleReplyDelete = useCallback((oldRecord: SelectMessage | SelectDirectMessage) => {
-    setReplies(prev => prev.filter(msg => msg.id !== oldRecord.id))
-  }, [])
+  const handleReplyDelete = useCallback(
+    (oldRecord: SelectMessage | SelectDirectMessage) => {
+      setReplies(prev => prev.filter(msg => msg.id !== oldRecord.id))
+    },
+    []
+  )
 
   useRealtimeTable({
     table: type === "channel" ? "messages" : "direct_messages",
@@ -163,7 +175,12 @@ export function ThreadPanel({
     <div className="flex h-full w-[400px] flex-col border-l">
       <div className="flex items-center justify-between border-b p-4">
         <h3 className="text-lg font-semibold">Thread</h3>
-        <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={onClose}
+        >
           <X className="size-4" />
         </Button>
       </div>
@@ -179,7 +196,7 @@ export function ThreadPanel({
                     ? (parentMessage as SelectDirectMessage).senderUsername
                     : (parentMessage as SelectMessage).username}
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {format(new Date(parentMessage.createdAt), "p")}
                 </span>
               </div>
@@ -195,18 +212,19 @@ export function ThreadPanel({
               type === "direct"
                 ? (reply as SelectDirectMessage).senderId
                 : (reply as SelectMessage).userId
-            const displayName = userMap[userKey]?.username || "";
+            const displayName = userMap[userKey]?.username || ""
 
-            const date = typeof reply.createdAt === "string"
-              ? new Date(reply.createdAt + "Z")
-              : reply.createdAt
+            const date =
+              typeof reply.createdAt === "string"
+                ? new Date(reply.createdAt + "Z")
+                : reply.createdAt
 
             return (
               <div key={reply.id} className="flex items-start gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{displayName}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                       {format(date || new Date(), "p")}
                     </span>
                   </div>

@@ -12,7 +12,11 @@ import {
 } from "@/actions/db/messages-actions"
 import { getUserAction, getUsersByIdsAction } from "@/actions/db/users-actions"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
@@ -22,9 +26,9 @@ import { useCallback, useEffect, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
 import { ThreadPanel } from "./thread-panel"
 
-function transformMessage<T extends { createdAt?: string | Date; updatedAt?: string | Date }>(
-  message: T
-): T {
+function transformMessage<
+  T extends { createdAt?: string | Date; updatedAt?: string | Date }
+>(message: T): T {
   const cloned = { ...message }
   if (typeof cloned.createdAt === "string") {
     cloned.createdAt = new Date(cloned.createdAt + "Z")
@@ -42,8 +46,15 @@ interface MessageListProps {
   userId: string
 }
 
-export function MessageList({ type, channelId, chatId, userId }: MessageListProps) {
-  const [messages, setMessages] = useState<(SelectMessage | SelectDirectMessage)[]>([])
+export function MessageList({
+  type,
+  channelId,
+  chatId,
+  userId
+}: MessageListProps) {
+  const [messages, setMessages] = useState<
+    (SelectMessage | SelectDirectMessage)[]
+  >([])
   const [userMap, setUserMap] = useState<Record<string, SelectUser>>({})
   const [selectedMessage, setSelectedMessage] = useState<
     SelectMessage | SelectDirectMessage | null
@@ -57,9 +68,10 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
       const msg = transformMessage(newRecord)
       setMessages(prev => [...prev, msg])
 
-      const messageUserId = type === "channel" 
-        ? (msg as SelectMessage).userId 
-        : (msg as SelectDirectMessage).senderId
+      const messageUserId =
+        type === "channel"
+          ? (msg as SelectMessage).userId
+          : (msg as SelectDirectMessage).senderId
 
       if (!userMap[messageUserId]) {
         const res = await getUserAction(messageUserId)
@@ -74,7 +86,9 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
   const handleUpdate = useCallback(
     (updatedRecord: SelectMessage | SelectDirectMessage) => {
       setMessages(prev =>
-        prev.map(msg => (msg.id === updatedRecord.id ? transformMessage(updatedRecord) : msg))
+        prev.map(msg =>
+          msg.id === updatedRecord.id ? transformMessage(updatedRecord) : msg
+        )
       )
     },
     []
@@ -121,9 +135,15 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
   }
 
   async function bulkLoadUsers(msgs: (SelectMessage | SelectDirectMessage)[]) {
-    const uniqueIds = Array.from(new Set(msgs.map(m => 
-      type === "channel" ? (m as SelectMessage).userId : (m as SelectDirectMessage).senderId
-    )))
+    const uniqueIds = Array.from(
+      new Set(
+        msgs.map(m =>
+          type === "channel"
+            ? (m as SelectMessage).userId
+            : (m as SelectDirectMessage).senderId
+        )
+      )
+    )
     const missingIds = uniqueIds.filter(id => !userMap[id])
     if (missingIds.length === 0) return
 
@@ -140,7 +160,7 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
 
   async function handleReaction(messageId: string, emoji: string) {
     setOpenEmojiPicker(null)
-    
+
     if (type === "channel") {
       const message = messages.find(m => m.id === messageId) as SelectMessage
       const reactions = (message.reactions || {}) as Record<string, string[]>
@@ -152,7 +172,9 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
         await addReactionAction(messageId, userId, emoji)
       }
     } else {
-      const message = messages.find(m => m.id === messageId) as SelectDirectMessage
+      const message = messages.find(
+        m => m.id === messageId
+      ) as SelectDirectMessage
       const reactions = (message.reactions || {}) as Record<string, string[]>
       const hasReacted = reactions[emoji]?.includes(userId)
 
@@ -175,9 +197,10 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
                 : message.createdAt
             const formattedDate = format(date || new Date(), "p")
 
-            const messageUserId = type === "channel" 
-              ? (message as SelectMessage).userId 
-              : (message as SelectDirectMessage).senderId
+            const messageUserId =
+              type === "channel"
+                ? (message as SelectMessage).userId
+                : (message as SelectDirectMessage).senderId
             const user = userMap[messageUserId]
             const displayName = user?.username || "Loading..."
 
@@ -186,7 +209,9 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{displayName}</span>
-                    <span className="text-xs text-muted-foreground">{formattedDate}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {formattedDate}
+                    </span>
                   </div>
                   <p className="mt-1">{message.content}</p>
                   {message.fileUrl && (
@@ -200,14 +225,27 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
                     </a>
                   )}
                   <div className="mt-2 flex items-center gap-2">
-                    <Popover open={openEmojiPicker === message.id} onOpenChange={(open) => setOpenEmojiPicker(open ? message.id : null)}>
+                    <Popover
+                      open={openEmojiPicker === message.id}
+                      onOpenChange={open =>
+                        setOpenEmojiPicker(open ? message.id : null)
+                      }
+                    >
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="size-8 rounded-full p-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="size-8 rounded-full p-0"
+                        >
                           <Smile className="size-4" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-80 p-0">
-                        <EmojiPicker onEmojiSelect={emoji => handleReaction(message.id, emoji)} />
+                        <EmojiPicker
+                          onEmojiSelect={emoji =>
+                            handleReaction(message.id, emoji)
+                          }
+                        />
                       </PopoverContent>
                     </Popover>
                     <Button
@@ -218,23 +256,25 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
                     >
                       <MessageSquare className="size-4" />
                       {message.replyCount > 0 && (
-                        <span className="ml-1 text-xs">{message.replyCount}</span>
+                        <span className="ml-1 text-xs">
+                          {message.replyCount}
+                        </span>
                       )}
                     </Button>
-                    {Object.entries((message.reactions as Record<string, string[]>) || {}).map(
-                      ([emoji, users]) => (
-                        <Button
-                          key={emoji}
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 gap-1 px-2"
-                          onClick={() => handleReaction(message.id, emoji)}
-                        >
-                          {emoji}
-                          <span className="text-xs">{users.length}</span>
-                        </Button>
-                      )
-                    )}
+                    {Object.entries(
+                      (message.reactions as Record<string, string[]>) || {}
+                    ).map(([emoji, users]) => (
+                      <Button
+                        key={emoji}
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 gap-1 px-2"
+                        onClick={() => handleReaction(message.id, emoji)}
+                      >
+                        {emoji}
+                        <span className="text-xs">{users.length}</span>
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </div>

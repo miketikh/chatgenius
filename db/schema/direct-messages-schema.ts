@@ -1,4 +1,11 @@
-import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import {
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid
+} from "drizzle-orm/pg-core"
 import { usersTable } from "./users-schema"
 
 export const directChatsTable = pgTable("direct_chats", {
@@ -28,7 +35,9 @@ export const directMessagesTable = pgTable("direct_messages", {
   fileName: text("file_name"),
   fileUrl: text("file_url"),
   reactions: jsonb("reactions").default({}).notNull(),
-  parentId: uuid("parent_id").references(() => directMessagesTable.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id").references(() => directMessagesTable.id, {
+    onDelete: "cascade"
+  }),
   replyCount: integer("reply_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")

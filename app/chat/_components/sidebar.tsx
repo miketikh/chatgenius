@@ -49,11 +49,15 @@ export function Sidebar({ userId }: SidebarProps) {
   const [isCreatingChannel, setIsCreatingChannel] = useState(false)
   const [isCreatingDirectMessage, setIsCreatingDirectMessage] = useState(false)
   const [newChannelName, setNewChannelName] = useState("")
-  const [newChannelType, setNewChannelType] = useState<"public" | "private">("public")
+  const [newChannelType, setNewChannelType] = useState<"public" | "private">(
+    "public"
+  )
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SelectUser[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [channelToDelete, setChannelToDelete] = useState<SelectChannel | null>(null)
+  const [channelToDelete, setChannelToDelete] = useState<SelectChannel | null>(
+    null
+  )
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const handleChannelInsert = useCallback((newChannel: SelectChannel) => {
@@ -122,7 +126,8 @@ export function Sidebar({ userId }: SidebarProps) {
     if (res?.isSuccess) {
       setDirectChats(res.data)
       const userPromises = res.data.map(async chat => {
-        const otherUserId = chat.user1Id === userId ? chat.user2Id : chat.user1Id
+        const otherUserId =
+          chat.user1Id === userId ? chat.user2Id : chat.user1Id
         const userRes = await getUserAction(otherUserId)
         if (userRes?.isSuccess) {
           return { [otherUserId]: userRes.data }
@@ -130,7 +135,10 @@ export function Sidebar({ userId }: SidebarProps) {
         return {}
       })
       const userResults = await Promise.all(userPromises)
-      const newChatUsers = userResults.reduce((acc, result) => ({ ...acc, ...result }), {})
+      const newChatUsers = userResults.reduce(
+        (acc, result) => ({ ...acc, ...result }),
+        {}
+      )
       setChatUsers(newChatUsers)
     }
   }
@@ -195,14 +203,20 @@ export function Sidebar({ userId }: SidebarProps) {
   return (
     <div className="bg-muted/10 flex h-full w-60 flex-col border-r">
       <div className="flex h-12 items-center border-b px-4">
-        <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} showName />
+        <UserButton
+          appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+          showName
+        />
       </div>
 
       <ScrollArea className="flex-1 px-2">
         <div className="mt-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-sm font-semibold">Channels</h2>
-            <Dialog open={isCreatingChannel} onOpenChange={setIsCreatingChannel}>
+            <Dialog
+              open={isCreatingChannel}
+              onOpenChange={setIsCreatingChannel}
+            >
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-4">
                   <Plus className="size-4" />
@@ -247,7 +261,7 @@ export function Sidebar({ userId }: SidebarProps) {
 
           <div className="mt-2 space-y-1">
             {channels.map(channel => (
-              <div key={channel.id} className="relative group">
+              <div key={channel.id} className="group relative">
                 <Button
                   variant="ghost"
                   className={cn(
@@ -265,7 +279,7 @@ export function Sidebar({ userId }: SidebarProps) {
                       setChannelToDelete(channel)
                       setIsDeleteDialogOpen(true)
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:block p-1 text-red-500"
+                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 p-1 text-red-500 group-hover:block"
                     title="Delete channel"
                   >
                     <Minus className="size-4" />
@@ -304,15 +318,17 @@ export function Sidebar({ userId }: SidebarProps) {
                   </div>
                   <div className="space-y-2">
                     {isSearching && (
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-muted-foreground text-sm">
                         Searching...
                       </div>
                     )}
-                    {!isSearching && searchResults.length === 0 && searchQuery && (
-                      <div className="text-sm text-muted-foreground">
-                        No users found
-                      </div>
-                    )}
+                    {!isSearching &&
+                      searchResults.length === 0 &&
+                      searchQuery && (
+                        <div className="text-muted-foreground text-sm">
+                          No users found
+                        </div>
+                      )}
                     {searchResults.map(user => (
                       <Button
                         key={user.id}
@@ -321,12 +337,12 @@ export function Sidebar({ userId }: SidebarProps) {
                         onClick={() => handleCreateDirectMessage(user.id)}
                       >
                         <div className="flex items-center">
-                          <div className="size-8 rounded-full bg-primary/10" />
+                          <div className="bg-primary/10 size-8 rounded-full" />
                           <div className="ml-2">
                             <div className="text-sm font-semibold">
                               {user.fullName}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-muted-foreground text-xs">
                               @{user.username}
                             </div>
                           </div>
@@ -341,7 +357,8 @@ export function Sidebar({ userId }: SidebarProps) {
 
           <div className="mt-2 space-y-1">
             {directChats.map(chat => {
-              const otherUserId = chat.user1Id === userId ? chat.user2Id : chat.user1Id
+              const otherUserId =
+                chat.user1Id === userId ? chat.user2Id : chat.user1Id
               const otherUser = chatUsers[otherUserId]
               return (
                 <Button
@@ -356,10 +373,12 @@ export function Sidebar({ userId }: SidebarProps) {
                   <MessageSquare className="mr-2 size-4" />
                   <div className="flex flex-col items-start">
                     <span className="text-sm">
-                      {otherUser?.fullName || otherUser?.username || "Loading..."}
+                      {otherUser?.fullName ||
+                        otherUser?.username ||
+                        "Loading..."}
                     </span>
                     {otherUser && otherUser.fullName && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         @{otherUser.username}
                       </span>
                     )}
