@@ -10,42 +10,29 @@ import {
   getChannelMessagesAction,
   removeReactionAction
 } from "@/actions/db/messages-actions"
+import { getUserAction, getUsersByIdsAction } from "@/actions/db/users-actions"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SelectDirectMessage, SelectMessage } from "@/db/schema"
-import {
-  useRealtimeDirectMessages,
-  useRealtimeMessages
-} from "@/lib/hooks/use-realtime"
+import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
+import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { MessageSquare, Smile } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
 import { ThreadPanel } from "./thread-panel"
 
-// Utility function to transform snake_case to camelCase
-function transformMessage(message: any): SelectMessage | SelectDirectMessage {
-  const transformed: any = {}
-  for (const [key, value] of Object.entries(message)) {
-    const camelKey = key.replace(/_([a-z])/g, (_, letter) =>
-      letter.toUpperCase()
-    )
-    // Convert created_at and updated_at to Date objects
-    if (key === "created_at" || key === "updated_at") {
-      // Ensure we parse the UTC date string correctly
-      transformed[camelKey] = new Date(
-        (value as string).replace(" ", "T") + "Z"
-      )
-    } else {
-      transformed[camelKey] = value
-    }
+function transformMessage<T extends { createdAt?: string | Date; updatedAt?: string | Date }>(
+  message: T
+): T {
+  const cloned = { ...message }
+  if (typeof cloned.createdAt === "string") {
+    cloned.createdAt = new Date(cloned.createdAt + "Z")
   }
-  return transformed
+  if (typeof cloned.updatedAt === "string") {
+    cloned.updatedAt = new Date(cloned.updatedAt + "Z")
+  }
+  return cloned
 }
 
 interface MessageListProps {
@@ -55,107 +42,99 @@ interface MessageListProps {
   userId: string
 }
 
-export function MessageList({
-  type,
-  channelId,
-  chatId,
-  userId
-}: MessageListProps) {
-  const [messages, setMessages] = useState<
-    (SelectMessage | SelectDirectMessage)[]
-  >([])
+export function MessageList({ type, channelId, chatId, userId }: MessageListProps) {
+  const [messages, setMessages] = useState<(SelectMessage | SelectDirectMessage)[]>([])
+  const [userMap, setUserMap] = useState<Record<string, SelectUser>>({})
   const [selectedMessage, setSelectedMessage] = useState<
     SelectMessage | SelectDirectMessage | null
   >(null)
 
+  const conversationId = type === "channel" ? channelId : chatId
+
+  const handleInsert = useCallback(
+    async (newRecord: SelectMessage | SelectDirectMessage) => {
+      const msg = transformMessage(newRecord)
+      setMessages(prev => [...prev, msg])
+
+      if (!userMap[msg.userId]) {
+        const res = await getUserAction(msg.userId)
+        if (res?.isSuccess && res.data) {
+          setUserMap(prev => ({ ...prev, [msg.userId]: res.data }))
+        }
+      }
+    },
+    [userMap]
+  )
+
+  const handleUpdate = useCallback(
+    (updatedRecord: SelectMessage | SelectDirectMessage) => {
+      setMessages(prev =>
+        prev.map(msg => (msg.id === updatedRecord.id ? transformMessage(updatedRecord) : msg))
+      )
+    },
+    []
+  )
+
+  const handleDelete = useCallback(
+    (oldRecord: SelectMessage | SelectDirectMessage) => {
+      setMessages(prev => prev.filter(msg => msg.id !== oldRecord.id))
+    },
+    []
+  )
+
+  useRealtimeTable({
+    table: type === "channel" ? "messages" : "direct_messages",
+    filter:
+      type === "channel"
+        ? `channel_id=eq.${conversationId || ""}`
+        : `chat_id=eq.${conversationId || ""}`,
+    onInsert: handleInsert,
+    onUpdate: handleUpdate,
+    onDelete: handleDelete
+  })
+
   useEffect(() => {
     loadMessages()
-  }, [channelId, chatId])
-
-  // Set up real-time listeners for channel messages
-  useRealtimeMessages(
-    type === "channel" ? channelId || "" : "",
-    newMessage => {
-      console.log("New message timestamp:", (newMessage as any).created_at)
-      if (type === "channel") {
-        setMessages(prev => [...prev, transformMessage(newMessage)])
-      }
-    },
-    updatedMessage => {
-      if (type === "channel") {
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === updatedMessage.id
-              ? transformMessage(updatedMessage)
-              : msg
-          )
-        )
-      }
-    },
-    deletedMessage => {
-      if (type === "channel") {
-        setMessages(prev => prev.filter(msg => msg.id !== deletedMessage.id))
-      }
-    }
-  )
-
-  useRealtimeDirectMessages(
-    type === "direct" ? chatId || "" : "",
-    newMessage => {
-      console.log(
-        "New direct message timestamp:",
-        (newMessage as any).created_at
-      )
-      if (type === "direct") {
-        const transformed = transformMessage(newMessage)
-        console.log("Transformed message:", transformed)
-        setMessages(prev => [...prev, transformed])
-      }
-    },
-    updatedMessage => {
-      if (type === "direct") {
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === updatedMessage.id
-              ? transformMessage(updatedMessage)
-              : msg
-          )
-        )
-      }
-    },
-    deletedMessage => {
-      if (type === "direct") {
-        setMessages(prev => prev.filter(msg => msg.id !== deletedMessage.id))
-      }
-    }
-  )
+  }, [conversationId, type])
 
   async function loadMessages() {
     if (type === "channel" && channelId) {
       const res = await getChannelMessagesAction(channelId)
       if (res.isSuccess) {
-        console.log(
-          "Loaded channel messages timestamps:",
-          res.data.map(m => m.createdAt)
-        )
-        setMessages(res.data)
+        const msgs = res.data.map(transformMessage)
+        setMessages(msgs)
+        await bulkLoadUsers(msgs)
       }
     } else if (type === "direct" && chatId) {
       const res = await getDirectChatMessagesAction(chatId)
       if (res.isSuccess) {
-        console.log(
-          "Loaded direct messages timestamps:",
-          res.data.map(m => m.createdAt)
-        )
-        setMessages(res.data)
+        const msgs = res.data.map(transformMessage)
+        setMessages(msgs)
+        await bulkLoadUsers(msgs)
       }
+    }
+  }
+
+  async function bulkLoadUsers(msgs: (SelectMessage | SelectDirectMessage)[]) {
+    const uniqueIds = Array.from(new Set(msgs.map(m => m.userId)))
+    const missingIds = uniqueIds.filter(id => !userMap[id])
+    if (missingIds.length === 0) return
+
+    const res = await getUsersByIdsAction(missingIds)
+    if (res.isSuccess) {
+      const fetchedUsers = res.data
+      const updateMap = { ...userMap }
+      fetchedUsers.forEach(u => {
+        updateMap[u.id] = u
+      })
+      setUserMap(updateMap)
     }
   }
 
   async function handleReaction(messageId: string, emoji: string) {
     if (type === "channel") {
       const message = messages.find(m => m.id === messageId) as SelectMessage
-      const reactions = message.reactions as Record<string, string[]>
+      const reactions = (message.reactions || {}) as Record<string, string[]>
       const hasReacted = reactions[emoji]?.includes(userId)
 
       if (hasReacted) {
@@ -164,10 +143,8 @@ export function MessageList({
         await addReactionAction(messageId, userId, emoji)
       }
     } else {
-      const message = messages.find(
-        m => m.id === messageId
-      ) as SelectDirectMessage
-      const reactions = message.reactions as Record<string, string[]>
+      const message = messages.find(m => m.id === messageId) as SelectDirectMessage
+      const reactions = (message.reactions || {}) as Record<string, string[]>
       const hasReacted = reactions[emoji]?.includes(userId)
 
       if (hasReacted) {
@@ -183,30 +160,21 @@ export function MessageList({
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map(message => {
-            const messageUserId =
-              type === "direct"
-                ? (message as SelectDirectMessage).senderId
-                : (message as SelectMessage).userId
-
             const date =
               typeof message.createdAt === "string"
                 ? new Date(message.createdAt + "Z")
                 : message.createdAt
+            const formattedDate = format(date || new Date(), "p")
 
-            const formattedDate = format(date, "p")
+            const user = userMap[message.userId]
+            const displayName = user?.username || "Loading..."
 
             return (
               <div key={message.id} className="flex items-start gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">
-                      {type === "direct"
-                        ? (message as SelectDirectMessage).senderUsername
-                        : (message as SelectMessage).username}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {formattedDate}
-                    </span>
+                    <span className="font-semibold">{displayName}</span>
+                    <span className="text-xs text-muted-foreground">{formattedDate}</span>
                   </div>
                   <p className="mt-1">{message.content}</p>
                   {message.fileUrl && (
@@ -222,20 +190,12 @@ export function MessageList({
                   <div className="mt-2 flex items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-8 rounded-full p-0"
-                        >
+                        <Button variant="ghost" size="sm" className="size-8 rounded-full p-0">
                           <Smile className="size-4" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-80 p-0">
-                        <EmojiPicker
-                          onEmojiSelect={emoji =>
-                            handleReaction(message.id, emoji)
-                          }
-                        />
+                        <EmojiPicker onEmojiSelect={emoji => handleReaction(message.id, emoji)} />
                       </PopoverContent>
                     </Popover>
                     <Button
@@ -246,25 +206,23 @@ export function MessageList({
                     >
                       <MessageSquare className="size-4" />
                       {message.replyCount > 0 && (
-                        <span className="ml-1 text-xs">
-                          {message.replyCount}
-                        </span>
+                        <span className="ml-1 text-xs">{message.replyCount}</span>
                       )}
                     </Button>
-                    {Object.entries(
-                      message.reactions as Record<string, string[]>
-                    ).map(([emoji, users]) => (
-                      <Button
-                        key={emoji}
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 gap-1 px-2"
-                        onClick={() => handleReaction(message.id, emoji)}
-                      >
-                        {emoji}
-                        <span className="text-xs">{users.length}</span>
-                      </Button>
-                    ))}
+                    {Object.entries((message.reactions as Record<string, string[]>) || {}).map(
+                      ([emoji, users]) => (
+                        <Button
+                          key={emoji}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 gap-1 px-2"
+                          onClick={() => handleReaction(message.id, emoji)}
+                        >
+                          {emoji}
+                          <span className="text-xs">{users.length}</span>
+                        </Button>
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -279,6 +237,8 @@ export function MessageList({
           parentMessage={selectedMessage}
           userId={userId}
           onClose={() => setSelectedMessage(null)}
+          userMap={userMap}
+          bulkLoadUsers={bulkLoadUsers}
         />
       )}
     </div>

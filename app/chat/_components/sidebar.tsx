@@ -1,42 +1,39 @@
 "use client"
 
 import {
-    createChannelAction,
-    getUserChannelsAction
+  createChannelAction,
+  getUserChannelsAction
 } from "@/actions/db/channels-actions"
 import {
-    createDirectChatAction,
-    getUserDirectChatsAction
+  createDirectChatAction,
+  getUserDirectChatsAction
 } from "@/actions/db/direct-messages-actions"
 import { getUserAction, searchUsersAction } from "@/actions/db/users-actions"
 import { Button } from "@/components/ui/button"
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select"
 import { SelectChannel, SelectDirectChat, SelectUser } from "@/db/schema"
-import {
-    useRealtimeChannels,
-    useRealtimeDirectChats
-} from "@/lib/hooks/use-realtime"
+import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { cn } from "@/lib/utils"
 import { UserButton } from "@clerk/nextjs"
 import { Hash, MessageSquare, Plus } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 interface SidebarProps {
   userId: string
@@ -51,55 +48,62 @@ export function Sidebar({ userId }: SidebarProps) {
   const [isCreatingChannel, setIsCreatingChannel] = useState(false)
   const [isCreatingDirectMessage, setIsCreatingDirectMessage] = useState(false)
   const [newChannelName, setNewChannelName] = useState("")
-  const [newChannelType, setNewChannelType] = useState<"public" | "private">(
-    "public"
-  )
+  const [newChannelType, setNewChannelType] = useState<"public" | "private">("public")
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SelectUser[]>([])
   const [isSearching, setIsSearching] = useState(false)
+
+  const handleChannelInsert = useCallback((newChannel: SelectChannel) => {
+    setChannels(prev => [...prev, newChannel])
+  }, [])
+
+  const handleChannelUpdate = useCallback((updatedChannel: SelectChannel) => {
+    setChannels(prev =>
+      prev.map(ch => (ch.id === updatedChannel.id ? updatedChannel : ch))
+    )
+  }, [])
+
+  const handleChannelDelete = useCallback((deletedChannel: SelectChannel) => {
+    setChannels(prev => prev.filter(ch => ch.id !== deletedChannel.id))
+  }, [])
+
+  const handleChatInsert = useCallback((newChat: SelectDirectChat) => {
+    setDirectChats(prev => [...prev, newChat])
+  }, [])
+
+  const handleChatUpdate = useCallback((updatedChat: SelectDirectChat) => {
+    setDirectChats(prev =>
+      prev.map(chat => (chat.id === updatedChat.id ? updatedChat : chat))
+    )
+  }, [])
+
+  const handleChatDelete = useCallback((deletedChat: SelectDirectChat) => {
+    setDirectChats(prev => prev.filter(chat => chat.id !== deletedChat.id))
+  }, [])
+
+  useRealtimeTable<SelectChannel>({
+    table: "channels",
+    filter: "",
+    onInsert: handleChannelInsert,
+    onUpdate: handleChannelUpdate,
+    onDelete: handleChannelDelete
+  })
+
+  useRealtimeTable<SelectDirectChat>({
+    table: "direct_chats",
+    filter: "",
+    onInsert: handleChatInsert,
+    onUpdate: handleChatUpdate,
+    onDelete: handleChatDelete
+  })
 
   useEffect(() => {
     loadChannels()
     loadDirectChats()
   }, [])
 
-  // Set up real-time listeners for channels
-  useRealtimeChannels(
-    newChannel => {
-      setChannels(prev => [...prev, newChannel])
-    },
-    updatedChannel => {
-      setChannels(prev =>
-        prev.map(channel =>
-          channel.id === updatedChannel.id ? updatedChannel : channel
-        )
-      )
-    },
-    deletedChannel => {
-      setChannels(prev =>
-        prev.filter(channel => channel.id !== deletedChannel.id)
-      )
-    }
-  )
-
-  // Set up real-time listeners for direct chats
-  useRealtimeDirectChats(
-    newChat => {
-      setDirectChats(prev => [...prev, newChat])
-    },
-    updatedChat => {
-      setDirectChats(prev =>
-        prev.map(chat => (chat.id === updatedChat.id ? updatedChat : chat))
-      )
-    },
-    deletedChat => {
-      setDirectChats(prev => prev.filter(chat => chat.id !== deletedChat.id))
-    }
-  )
-
   async function loadChannels() {
     if (!userId) return
-    
     const res = await getUserChannelsAction(userId)
     if (res?.isSuccess) {
       setChannels(res.data)
@@ -108,26 +112,19 @@ export function Sidebar({ userId }: SidebarProps) {
 
   async function loadDirectChats() {
     if (!userId) return
-    
     const res = await getUserDirectChatsAction(userId)
     if (res?.isSuccess) {
       setDirectChats(res.data)
-      // Load user info for each chat in parallel
       const userPromises = res.data.map(async chat => {
-        const otherUserId =
-          chat.user1Id === userId ? chat.user2Id : chat.user1Id
+        const otherUserId = chat.user1Id === userId ? chat.user2Id : chat.user1Id
         const userRes = await getUserAction(otherUserId)
         if (userRes?.isSuccess) {
           return { [otherUserId]: userRes.data }
         }
         return {}
       })
-
       const userResults = await Promise.all(userPromises)
-      const newChatUsers = userResults.reduce((acc, result) => {
-        return { ...acc, ...result }
-      }, {})
-
+      const newChatUsers = userResults.reduce((acc, result) => ({ ...acc, ...result }), {})
       setChatUsers(newChatUsers)
     }
   }
@@ -144,7 +141,6 @@ export function Sidebar({ userId }: SidebarProps) {
       },
       [userId]
     )
-
     if (res.isSuccess) {
       setNewChannelName("")
       setIsCreatingChannel(false)
@@ -155,12 +151,10 @@ export function Sidebar({ userId }: SidebarProps) {
   async function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
     const query = e.target.value
     setSearchQuery(query)
-
     if (!query.trim()) {
       setSearchResults([])
       return
     }
-
     setIsSearching(true)
     const res = await searchUsersAction(query, userId)
     if (res.isSuccess) {
@@ -182,24 +176,14 @@ export function Sidebar({ userId }: SidebarProps) {
   return (
     <div className="bg-muted/10 flex h-full w-60 flex-col border-r">
       <div className="flex h-12 items-center border-b px-4">
-        <UserButton
-          appearance={{
-            elements: {
-              avatarBox: "h-8 w-8"
-            }
-          }}
-          showName={true}
-        />
+        <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} showName />
       </div>
 
       <ScrollArea className="flex-1 px-2">
         <div className="mt-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-sm font-semibold">Channels</h2>
-            <Dialog
-              open={isCreatingChannel}
-              onOpenChange={setIsCreatingChannel}
-            >
+            <Dialog open={isCreatingChannel} onOpenChange={setIsCreatingChannel}>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-4">
                   <Plus className="size-4" />
@@ -288,17 +272,15 @@ export function Sidebar({ userId }: SidebarProps) {
                   </div>
                   <div className="space-y-2">
                     {isSearching && (
-                      <div className="text-muted-foreground text-sm">
+                      <div className="text-sm text-muted-foreground">
                         Searching...
                       </div>
                     )}
-                    {!isSearching &&
-                      searchResults.length === 0 &&
-                      searchQuery && (
-                        <div className="text-muted-foreground text-sm">
-                          No users found
-                        </div>
-                      )}
+                    {!isSearching && searchResults.length === 0 && searchQuery && (
+                      <div className="text-sm text-muted-foreground">
+                        No users found
+                      </div>
+                    )}
                     {searchResults.map(user => (
                       <Button
                         key={user.id}
@@ -307,12 +289,12 @@ export function Sidebar({ userId }: SidebarProps) {
                         onClick={() => handleCreateDirectMessage(user.id)}
                       >
                         <div className="flex items-center">
-                          <div className="bg-primary/10 size-8 rounded-full" />
+                          <div className="size-8 rounded-full bg-primary/10" />
                           <div className="ml-2">
                             <div className="text-sm font-semibold">
                               {user.fullName}
                             </div>
-                            <div className="text-muted-foreground text-xs">
+                            <div className="text-xs text-muted-foreground">
                               @{user.username}
                             </div>
                           </div>
@@ -327,8 +309,7 @@ export function Sidebar({ userId }: SidebarProps) {
 
           <div className="mt-2 space-y-1">
             {directChats.map(chat => {
-              const otherUserId =
-                chat.user1Id === userId ? chat.user2Id : chat.user1Id
+              const otherUserId = chat.user1Id === userId ? chat.user2Id : chat.user1Id
               const otherUser = chatUsers[otherUserId]
               return (
                 <Button
@@ -343,12 +324,10 @@ export function Sidebar({ userId }: SidebarProps) {
                   <MessageSquare className="mr-2 size-4" />
                   <div className="flex flex-col items-start">
                     <span className="text-sm">
-                      {otherUser?.fullName ||
-                        otherUser?.username ||
-                        "Loading..."}
+                      {otherUser?.fullName || otherUser?.username || "Loading..."}
                     </span>
                     {otherUser && otherUser.fullName && (
-                      <span className="text-muted-foreground text-xs">
+                      <span className="text-xs text-muted-foreground">
                         @{otherUser.username}
                       </span>
                     )}

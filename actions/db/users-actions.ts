@@ -3,7 +3,7 @@
 import { db } from "@/db/db"
 import { InsertUser, SelectUser, usersTable } from "@/db/schema"
 import { ActionState } from "@/types"
-import { and, eq, ilike, not, or } from "drizzle-orm"
+import { and, eq, ilike, inArray, not, or } from "drizzle-orm"
 
 export async function createUserAction(
   user: InsertUser
@@ -121,5 +121,24 @@ export async function searchUsersAction(
   } catch (error) {
     console.error("Error searching users:", error)
     return { isSuccess: false, message: "Failed to search users" }
+  }
+}
+// e.g. in "users-actions.ts"
+
+export async function getUsersByIdsAction(
+  userIds: string[]
+): Promise<ActionState<SelectUser[]>> {
+  try {
+    const users = await db.query.users.findMany({
+      where: inArray(usersTable.id, userIds)
+    })
+    return {
+      isSuccess: true,
+      message: "Users retrieved successfully",
+      data: users
+    }
+  } catch (error) {
+    console.error("Error getting users:", error)
+    return { isSuccess: false, message: "Failed to get users" }
   }
 }
