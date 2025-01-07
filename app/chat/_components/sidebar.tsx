@@ -2,6 +2,7 @@
 
 import {
   createChannelAction,
+  deleteChannelAction,
   getUserChannelsAction
 } from "@/actions/db/channels-actions"
 import {
@@ -31,7 +32,7 @@ import { SelectChannel, SelectDirectChat, SelectUser } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { cn } from "@/lib/utils"
 import { UserButton } from "@clerk/nextjs"
-import { Hash, MessageSquare, Plus } from "lucide-react"
+import { Hash, MessageSquare, Minus, Plus } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
@@ -52,6 +53,8 @@ export function Sidebar({ userId }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SelectUser[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [channelToDelete, setChannelToDelete] = useState<SelectChannel | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const handleChannelInsert = useCallback((newChannel: SelectChannel) => {
     setChannels(prev => [...prev, newChannel])
@@ -83,7 +86,8 @@ export function Sidebar({ userId }: SidebarProps) {
 
   useRealtimeTable<SelectChannel>({
     table: "channels",
-    filter: "",
+    // filter: `type=eq.public,or=(creator_id.eq.${userId})`,
+    filter: `type=eq.public`,
     onInsert: handleChannelInsert,
     onUpdate: handleChannelUpdate,
     onDelete: handleChannelDelete
@@ -91,7 +95,9 @@ export function Sidebar({ userId }: SidebarProps) {
 
   useRealtimeTable<SelectDirectChat>({
     table: "direct_chats",
-    filter: "",
+    // filter: `user1_id=${userId} OR user2_id=${userId}`,
+    // TODO: no way to subscribe to multiple filters for realtime, need to add client-side filtering or multiple channels
+    filter: `user1_id=eq.${userId}`,
     onInsert: handleChatInsert,
     onUpdate: handleChatUpdate,
     onDelete: handleChatDelete
@@ -173,6 +179,19 @@ export function Sidebar({ userId }: SidebarProps) {
     }
   }
 
+  async function handleDeleteChannel() {
+    if (!channelToDelete) return
+    const res = await deleteChannelAction(channelToDelete.id)
+    if (res.isSuccess) {
+      if (params?.channelId === channelToDelete.id) {
+        router.push("/chat")
+      }
+      setChannels(prev => prev.filter(ch => ch.id !== channelToDelete.id))
+      setChannelToDelete(null)
+      setIsDeleteDialogOpen(false)
+    }
+  }
+
   return (
     <div className="bg-muted/10 flex h-full w-60 flex-col border-r">
       <div className="flex h-12 items-center border-b px-4">
@@ -228,18 +247,31 @@ export function Sidebar({ userId }: SidebarProps) {
 
           <div className="mt-2 space-y-1">
             {channels.map(channel => (
-              <Button
-                key={channel.id}
-                variant="ghost"
-                className={cn(
-                  "w-full justify-start",
-                  params?.channelId === channel.id && "bg-muted"
+              <div key={channel.id} className="relative group">
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start pr-10",
+                    params?.channelId === channel.id && "bg-muted"
+                  )}
+                  onClick={() => router.push(`/chat/channel/${channel.id}`)}
+                >
+                  <Hash className="mr-2 size-4" />
+                  {channel.name}
+                </Button>
+                {channel.creatorId === userId && (
+                  <button
+                    onClick={() => {
+                      setChannelToDelete(channel)
+                      setIsDeleteDialogOpen(true)
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:block p-1 text-red-500"
+                    title="Delete channel"
+                  >
+                    <Minus className="size-4" />
+                  </button>
                 )}
-                onClick={() => router.push(`/chat/channel/${channel.id}`)}
-              >
-                <Hash className="mr-2 size-4" />
-                {channel.name}
-              </Button>
+              </div>
             ))}
           </div>
         </div>
@@ -338,6 +370,32 @@ export function Sidebar({ userId }: SidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Channel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>
+              Are you sure you want to delete{" "}
+              <span className="font-bold">{channelToDelete?.name}</span>?<br />
+              This will delete <strong>all messages</strong> in that channel.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="destructive" onClick={handleDeleteChannel}>
+                Delete
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

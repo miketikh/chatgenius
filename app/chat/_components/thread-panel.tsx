@@ -195,10 +195,6 @@ export function ThreadPanel({
               type === "direct"
                 ? (reply as SelectDirectMessage).senderId
                 : (reply as SelectMessage).userId
-            // const displayName =
-            //   type === "direct"
-            //     ? (reply as SelectDirectMessage).senderUsername
-            //     : (reply as SelectMessage).username
             const displayName = userMap[userKey]?.username || "";
 
             const date = typeof reply.createdAt === "string"
