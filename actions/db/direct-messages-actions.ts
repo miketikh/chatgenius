@@ -78,22 +78,12 @@ export async function getUserDirectChatsAction(
 }
 
 export async function createDirectMessageAction(
-  message: Omit<InsertDirectMessage, "senderUsername">
+  message: InsertDirectMessage
 ): Promise<ActionState<SelectDirectMessage>> {
   try {
-    // Get the username from the users table
-    const user = await db.query.users.findFirst({
-      where: eq(usersTable.id, message.senderId)
-    })
-
-    if (!user) {
-      return { isSuccess: false, message: "User not found" }
-    }
-
-    // Create the message with the username
     const [newMessage] = await db
       .insert(directMessagesTable)
-      .values({ ...message, senderUsername: user.username })
+      .values(message)
       .returning()
 
     return {
@@ -110,16 +100,24 @@ export async function createDirectMessageAction(
 export async function getDirectChatMessagesAction(
   chatId: string,
   limit = 50
-): Promise<ActionState<SelectDirectMessage[]>> {
+): Promise<ActionState<(SelectDirectMessage & { senderUsername: string })[]>> {
   try {
-    const messages = await db.query.directMessages.findMany({
-      where: and(
-        eq(directMessagesTable.chatId, chatId),
-        isNull(directMessagesTable.parentId)
-      ),
-      orderBy: asc(directMessagesTable.createdAt),
-      limit
-    })
+    const messages = await db
+      .select({
+        ...directMessagesTable,
+        senderUsername: usersTable.username
+      })
+      .from(directMessagesTable)
+      .innerJoin(usersTable, eq(directMessagesTable.senderId, usersTable.id))
+      .where(
+        and(
+          eq(directMessagesTable.chatId, chatId),
+          isNull(directMessagesTable.parentId)
+        )
+      )
+      .orderBy(asc(directMessagesTable.createdAt))
+      .limit(limit)
+
     return {
       isSuccess: true,
       message: "Direct messages retrieved successfully",
@@ -133,12 +131,17 @@ export async function getDirectChatMessagesAction(
 
 export async function getDirectThreadMessagesAction(
   parentId: string
-): Promise<ActionState<SelectDirectMessage[]>> {
+): Promise<ActionState<(SelectDirectMessage & { senderUsername: string })[]>> {
   try {
-    const messages = await db.query.directMessages.findMany({
-      where: eq(directMessagesTable.parentId, parentId),
-      orderBy: directMessagesTable.createdAt
-    })
+    const messages = await db
+      .select({
+        ...directMessagesTable,
+        senderUsername: usersTable.username
+      })
+      .from(directMessagesTable)
+      .innerJoin(usersTable, eq(directMessagesTable.senderId, usersTable.id))
+      .where(eq(directMessagesTable.parentId, parentId))
+      .orderBy(directMessagesTable.createdAt)
 
     return {
       isSuccess: true,

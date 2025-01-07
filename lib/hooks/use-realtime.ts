@@ -9,6 +9,19 @@ import {
 import { supabase } from "@/lib/supabase"
 import { useEffect } from "react"
 
+type DirectMessageWithUsername = SelectDirectMessage & { senderUsername: string }
+
+function snakeToCamel<T>(obj: any): T {
+  const camelObj: any = {}
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      camelObj[camelKey] = obj[key]
+    }
+  }
+  return camelObj as T
+}
+
 export function useRealtimeMessages(
   channelId: string,
   onNewMessage: (message: SelectMessage) => void,
@@ -31,25 +44,18 @@ export function useRealtimeMessages(
         console.log("postgres change received:", payload)
         const { eventType, new: newRecord, old: oldRecord } = payload
 
-        // Normalize dates to ISO strings
-        const normalizeRecord = (record: any) => ({
-          ...record,
-          createdAt: record.created_at,
-          updatedAt: record.updated_at
-        })
-
         switch (eventType) {
           case "INSERT":
             console.log("new message", newRecord)
-            onNewMessage(normalizeRecord(newRecord) as SelectMessage)
+            onNewMessage(snakeToCamel<SelectMessage>(newRecord))
             break
           case "UPDATE":
             console.log("update message", newRecord)
-            onUpdateMessage(normalizeRecord(newRecord) as SelectMessage)
+            onUpdateMessage(snakeToCamel<SelectMessage>(newRecord))
             break
           case "DELETE":
             console.log("delete message", oldRecord)
-            onDeleteMessage(normalizeRecord(oldRecord) as SelectMessage)
+            onDeleteMessage(snakeToCamel<SelectMessage>(oldRecord))
             break
         }
       }
@@ -69,12 +75,21 @@ export function useRealtimeMessages(
 
 export function useRealtimeDirectMessages(
   chatId: string,
-  onNewMessage: (message: SelectDirectMessage) => void,
-  onUpdateMessage: (message: SelectDirectMessage) => void,
-  onDeleteMessage: (message: SelectDirectMessage) => void
+  onNewMessage: (message: DirectMessageWithUsername) => void,
+  onUpdateMessage: (message: DirectMessageWithUsername) => void,
+  onDeleteMessage: (message: DirectMessageWithUsername) => void
 ) {
   useEffect(() => {
     if (!chatId) return
+
+    const fetchUsername = async (userId: string) => {
+      const { data } = await supabase
+        .from("users")
+        .select("username")
+        .eq("id", userId)
+        .single()
+      return data?.username
+    }
 
     const channel = supabase
       .channel("direct_messages")
@@ -86,8 +101,10 @@ export function useRealtimeDirectMessages(
           table: "direct_messages",
           filter: `chat_id=eq.${chatId}`
         },
-        payload => {
-          onNewMessage(payload.new as SelectDirectMessage)
+        async (payload) => {
+          const message = snakeToCamel<SelectDirectMessage>(payload.new)
+          const username = await fetchUsername(message.senderId)
+          onNewMessage({ ...message, senderUsername: username || "" })
         }
       )
       .on(
@@ -98,8 +115,10 @@ export function useRealtimeDirectMessages(
           table: "direct_messages",
           filter: `chat_id=eq.${chatId}`
         },
-        payload => {
-          onUpdateMessage(payload.new as SelectDirectMessage)
+        async (payload) => {
+          const message = snakeToCamel<SelectDirectMessage>(payload.new)
+          const username = await fetchUsername(message.senderId)
+          onUpdateMessage({ ...message, senderUsername: username || "" })
         }
       )
       .on(
@@ -110,8 +129,10 @@ export function useRealtimeDirectMessages(
           table: "direct_messages",
           filter: `chat_id=eq.${chatId}`
         },
-        payload => {
-          onDeleteMessage(payload.old as SelectDirectMessage)
+        async (payload) => {
+          const message = snakeToCamel<SelectDirectMessage>(payload.old)
+          const username = await fetchUsername(message.senderId)
+          onDeleteMessage({ ...message, senderUsername: username || "" })
         }
       )
       .subscribe()
@@ -138,7 +159,7 @@ export function useRealtimeChannels(
           table: "channels"
         },
         payload => {
-          onNewChannel(payload.new as SelectChannel)
+          onNewChannel(snakeToCamel<SelectChannel>(payload.new))
         }
       )
       .on(
@@ -149,7 +170,7 @@ export function useRealtimeChannels(
           table: "channels"
         },
         payload => {
-          onUpdateChannel(payload.new as SelectChannel)
+          onUpdateChannel(snakeToCamel<SelectChannel>(payload.new))
         }
       )
       .on(
@@ -160,7 +181,7 @@ export function useRealtimeChannels(
           table: "channels"
         },
         payload => {
-          onDeleteChannel(payload.old as SelectChannel)
+          onDeleteChannel(snakeToCamel<SelectChannel>(payload.old))
         }
       )
       .subscribe()
@@ -187,7 +208,7 @@ export function useRealtimeDirectChats(
           table: "direct_chats"
         },
         payload => {
-          onNewChat(payload.new as SelectDirectChat)
+          onNewChat(snakeToCamel<SelectDirectChat>(payload.new))
         }
       )
       .on(
@@ -198,7 +219,7 @@ export function useRealtimeDirectChats(
           table: "direct_chats"
         },
         payload => {
-          onUpdateChat(payload.new as SelectDirectChat)
+          onUpdateChat(snakeToCamel<SelectDirectChat>(payload.new))
         }
       )
       .on(
@@ -209,7 +230,7 @@ export function useRealtimeDirectChats(
           table: "direct_chats"
         },
         payload => {
-          onDeleteChat(payload.old as SelectDirectChat)
+          onDeleteChat(snakeToCamel<SelectDirectChat>(payload.old))
         }
       )
       .subscribe()

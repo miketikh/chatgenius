@@ -10,7 +10,6 @@ export const messagesTable = pgTable("messages", {
   userId: text("user_id")
     .references(() => usersTable.id)
     .notNull(),
-  username: text("username").notNull(),
   content: text("content").notNull(),
   fileName: text("file_name"),
   fileUrl: text("file_url"),

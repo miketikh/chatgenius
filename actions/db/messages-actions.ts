@@ -2,38 +2,38 @@
 
 import { db } from "@/db/db"
 import {
-  InsertMessage,
-  MessageReactions,
-  SelectMessage,
-  messagesTable,
-  usersTable
+    InsertMessage,
+    MessageReactions,
+    SelectMessage,
+    messagesTable,
+    usersTable
 } from "@/db/schema"
 import { ActionState } from "@/types"
 import { and, asc, eq, isNull, sql } from "drizzle-orm"
 
 export async function createMessageAction(
-  message: Omit<InsertMessage, "username">
-): Promise<ActionState<SelectMessage>> {
+  message: InsertMessage
+): Promise<ActionState<SelectMessage & { username: string }>> {
   try {
-    // Get the username from the users table
+    const [newMessage] = await db
+      .insert(messagesTable)
+      .values(message)
+      .returning()
+
+    // Get the username
     const user = await db.query.users.findFirst({
-      where: eq(usersTable.id, message.userId)
+      where: eq(usersTable.id, message.userId),
+      columns: { username: true }
     })
 
     if (!user) {
       return { isSuccess: false, message: "User not found" }
     }
 
-    // Create the message with the username
-    const [newMessage] = await db
-      .insert(messagesTable)
-      .values({ ...message, username: user.username })
-      .returning()
-
     return {
       isSuccess: true,
       message: "Message created successfully",
-      data: newMessage
+      data: { ...newMessage, username: user.username }
     }
   } catch (error) {
     console.error("Error creating message:", error)
@@ -44,16 +44,24 @@ export async function createMessageAction(
 export async function getChannelMessagesAction(
   channelId: string,
   limit = 50
-): Promise<ActionState<SelectMessage[]>> {
+): Promise<ActionState<(SelectMessage & { username: string })[]>> {
   try {
-    const messages = await db.query.messages.findMany({
-      where: and(
-        eq(messagesTable.channelId, channelId),
-        isNull(messagesTable.parentId)
-      ),
-      orderBy: asc(messagesTable.createdAt),
-      limit
-    })
+    const messages = await db
+      .select({
+        ...messagesTable,
+        username: usersTable.username
+      })
+      .from(messagesTable)
+      .innerJoin(usersTable, eq(messagesTable.userId, usersTable.id))
+      .where(
+        and(
+          eq(messagesTable.channelId, channelId),
+          isNull(messagesTable.parentId)
+        )
+      )
+      .orderBy(asc(messagesTable.createdAt))
+      .limit(limit)
+
     return {
       isSuccess: true,
       message: "Messages retrieved successfully",
@@ -67,12 +75,17 @@ export async function getChannelMessagesAction(
 
 export async function getThreadMessagesAction(
   parentId: string
-): Promise<ActionState<SelectMessage[]>> {
+): Promise<ActionState<(SelectMessage & { username: string })[]>> {
   try {
-    const messages = await db.query.messages.findMany({
-      where: eq(messagesTable.parentId, parentId),
-      orderBy: messagesTable.createdAt
-    })
+    const messages = await db
+      .select({
+        ...messagesTable,
+        username: usersTable.username
+      })
+      .from(messagesTable)
+      .innerJoin(usersTable, eq(messagesTable.userId, usersTable.id))
+      .where(eq(messagesTable.parentId, parentId))
+      .orderBy(messagesTable.createdAt)
 
     return {
       isSuccess: true,
@@ -87,7 +100,7 @@ export async function getThreadMessagesAction(
 
 export async function createThreadMessageAction(
   message: InsertMessage
-): Promise<ActionState<SelectMessage>> {
+): Promise<ActionState<SelectMessage & { username: string }>> {
   try {
     // Start a transaction
     const result = await db.transaction(async tx => {
@@ -105,7 +118,17 @@ export async function createThreadMessageAction(
           .where(eq(messagesTable.id, message.parentId))
       }
 
-      return newMessage
+      // Get the username
+      const user = await tx.query.users.findFirst({
+        where: eq(usersTable.id, message.userId),
+        columns: { username: true }
+      })
+
+      if (!user) {
+        throw new Error("User not found")
+      }
+
+      return { ...newMessage, username: user.username }
     })
 
     return {

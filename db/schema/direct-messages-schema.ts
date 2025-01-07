@@ -24,7 +24,6 @@ export const directMessagesTable = pgTable("direct_messages", {
   senderId: text("sender_id")
     .references(() => usersTable.id)
     .notNull(),
-  senderUsername: text("sender_username").notNull(),
   content: text("content").notNull(),
   fileName: text("file_name"),
   fileUrl: text("file_url"),
