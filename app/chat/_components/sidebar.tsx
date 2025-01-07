@@ -1,36 +1,36 @@
 "use client"
 
 import {
-  createChannelAction,
-  getUserChannelsAction
+    createChannelAction,
+    getUserChannelsAction
 } from "@/actions/db/channels-actions"
 import {
-  createDirectChatAction,
-  getUserDirectChatsAction
+    createDirectChatAction,
+    getUserDirectChatsAction
 } from "@/actions/db/direct-messages-actions"
 import { getUserAction, searchUsersAction } from "@/actions/db/users-actions"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
 } from "@/components/ui/select"
 import { SelectChannel, SelectDirectChat, SelectUser } from "@/db/schema"
 import {
-  useRealtimeChannels,
-  useRealtimeDirectChats
+    useRealtimeChannels,
+    useRealtimeDirectChats
 } from "@/lib/hooks/use-realtime"
 import { cn } from "@/lib/utils"
 import { UserButton } from "@clerk/nextjs"
@@ -98,22 +98,26 @@ export function Sidebar({ userId }: SidebarProps) {
   )
 
   async function loadChannels() {
+    if (!userId) return
+    
     const res = await getUserChannelsAction(userId)
-    if (res.isSuccess) {
+    if (res?.isSuccess) {
       setChannels(res.data)
     }
   }
 
   async function loadDirectChats() {
+    if (!userId) return
+    
     const res = await getUserDirectChatsAction(userId)
-    if (res.isSuccess) {
+    if (res?.isSuccess) {
       setDirectChats(res.data)
       // Load user info for each chat in parallel
       const userPromises = res.data.map(async chat => {
         const otherUserId =
           chat.user1Id === userId ? chat.user2Id : chat.user1Id
         const userRes = await getUserAction(otherUserId)
-        if (userRes.isSuccess) {
+        if (userRes?.isSuccess) {
           return { [otherUserId]: userRes.data }
         }
         return {}

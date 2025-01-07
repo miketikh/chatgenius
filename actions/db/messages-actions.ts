@@ -2,14 +2,14 @@
 
 import { db } from "@/db/db"
 import {
-    InsertMessage,
-    MessageReactions,
-    SelectMessage,
-    messagesTable,
-    usersTable
+  InsertMessage,
+  MessageReactions,
+  SelectMessage,
+  messagesTable,
+  usersTable
 } from "@/db/schema"
 import { ActionState } from "@/types"
-import { and, asc, eq, isNull } from "drizzle-orm"
+import { and, asc, eq, isNull, sql } from "drizzle-orm"
 
 export async function createMessageAction(
   message: Omit<InsertMessage, "username">
@@ -71,8 +71,9 @@ export async function getThreadMessagesAction(
   try {
     const messages = await db.query.messages.findMany({
       where: eq(messagesTable.parentId, parentId),
-      orderBy: asc(messagesTable.createdAt)
+      orderBy: messagesTable.createdAt
     })
+
     return {
       isSuccess: true,
       message: "Thread messages retrieved successfully",
@@ -81,6 +82,40 @@ export async function getThreadMessagesAction(
   } catch (error) {
     console.error("Error getting thread messages:", error)
     return { isSuccess: false, message: "Failed to get thread messages" }
+  }
+}
+
+export async function createThreadMessageAction(
+  message: InsertMessage
+): Promise<ActionState<SelectMessage>> {
+  try {
+    // Start a transaction
+    const result = await db.transaction(async tx => {
+      // Insert the new message
+      const [newMessage] = await tx
+        .insert(messagesTable)
+        .values(message)
+        .returning()
+
+      // Increment the reply count on the parent message
+      if (message.parentId) {
+        await tx
+          .update(messagesTable)
+          .set({ replyCount: sql`${messagesTable.replyCount} + 1` })
+          .where(eq(messagesTable.id, message.parentId))
+      }
+
+      return newMessage
+    })
+
+    return {
+      isSuccess: true,
+      message: "Thread message created successfully",
+      data: result
+    }
+  } catch (error) {
+    console.error("Error creating thread message:", error)
+    return { isSuccess: false, message: "Failed to create thread message" }
   }
 }
 

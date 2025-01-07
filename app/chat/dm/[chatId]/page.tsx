@@ -65,4 +65,5 @@ export default async function DirectMessagePage({
       <MessageInput type="direct" chatId={chatId} userId={userId} />
     </div>
   )
+
 }

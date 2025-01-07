@@ -23,9 +23,10 @@ import {
   useRealtimeMessages
 } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
-import { Smile } from "lucide-react"
+import { MessageSquare, Smile } from "lucide-react"
 import { useEffect, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
+import { ThreadPanel } from "./thread-panel"
 
 // Utility function to transform snake_case to camelCase
 function transformMessage(message: any): SelectMessage | SelectDirectMessage {
@@ -63,6 +64,9 @@ export function MessageList({
   const [messages, setMessages] = useState<
     (SelectMessage | SelectDirectMessage)[]
   >([])
+  const [selectedMessage, setSelectedMessage] = useState<
+    SelectMessage | SelectDirectMessage | null
+  >(null)
 
   useEffect(() => {
     loadMessages()
@@ -175,86 +179,108 @@ export function MessageList({
   }
 
   return (
-    <ScrollArea className="flex-1 p-4">
-      <div className="space-y-4">
-        {messages.map(message => {
-          const messageUserId =
-            type === "direct"
-              ? (message as SelectDirectMessage).senderId
-              : (message as SelectMessage).userId
+    <div className="flex h-full min-h-0">
+      <ScrollArea className="flex-1 p-4">
+        <div className="space-y-4">
+          {messages.map(message => {
+            const messageUserId =
+              type === "direct"
+                ? (message as SelectDirectMessage).senderId
+                : (message as SelectMessage).userId
 
-          console.log("Formatting timestamp for message:", {
-            id: message.id,
-            createdAt: message.createdAt,
-            type: typeof message.createdAt,
-            date: new Date(message.createdAt)
-          })
+            const date =
+              typeof message.createdAt === "string"
+                ? new Date(message.createdAt + "Z")
+                : message.createdAt
 
-          // Ensure we parse the date as UTC
-          const date =
-            typeof message.createdAt === "string"
-              ? new Date(message.createdAt + "Z")
-              : message.createdAt
+            const formattedDate = format(date, "p")
 
-          const formattedDate = format(date, "p")
-
-          return (
-            <div key={message.id} className="flex items-start gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">
-                    {type === "direct"
-                      ? (message as SelectDirectMessage).senderUsername
-                      : (message as SelectMessage).username}
-                  </span>
-                  <span className="text-muted-foreground text-xs">
-                    {formattedDate}
-                  </span>
-                </div>
-                <p className="mt-1">{message.content}</p>
-                {message.fileUrl && (
-                  <a
-                    href={message.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-sm text-blue-500 hover:underline"
-                  >
-                    {message.fileName}
-                  </a>
-                )}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {Object.entries(
-                    message.reactions as Record<string, string[]>
-                  ).map(([emoji, users]) => (
+            return (
+              <div key={message.id} className="flex items-start gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">
+                      {type === "direct"
+                        ? (message as SelectDirectMessage).senderUsername
+                        : (message as SelectMessage).username}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {formattedDate}
+                    </span>
+                  </div>
+                  <p className="mt-1">{message.content}</p>
+                  {message.fileUrl && (
+                    <a
+                      href={message.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-sm text-blue-500 hover:underline"
+                    >
+                      {message.fileName}
+                    </a>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="size-8 rounded-full p-0"
+                        >
+                          <Smile className="size-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0">
+                        <EmojiPicker
+                          onEmojiSelect={emoji =>
+                            handleReaction(message.id, emoji)
+                          }
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <Button
-                      key={emoji}
                       variant="ghost"
                       size="sm"
-                      className="h-6 gap-1 px-2"
-                      onClick={() => handleReaction(message.id, emoji)}
+                      className="size-8 rounded-full p-0"
+                      onClick={() => setSelectedMessage(message)}
                     >
-                      {emoji}
-                      <span className="text-xs">{users.length}</span>
+                      <MessageSquare className="size-4" />
+                      {message.replyCount > 0 && (
+                        <span className="ml-1 text-xs">
+                          {message.replyCount}
+                        </span>
+                      )}
                     </Button>
-                  ))}
+                    {Object.entries(
+                      message.reactions as Record<string, string[]>
+                    ).map(([emoji, users]) => (
+                      <Button
+                        key={emoji}
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 gap-1 px-2"
+                        onClick={() => handleReaction(message.id, emoji)}
+                      >
+                        {emoji}
+                        <span className="text-xs">{users.length}</span>
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="size-8">
-                    <Smile className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-0">
-                  <EmojiPicker
-                    onEmojiSelect={emoji => handleReaction(message.id, emoji)}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          )
-        })}
-      </div>
-    </ScrollArea>
+            )
+          })}
+        </div>
+      </ScrollArea>
+
+      {selectedMessage && (
+        <ThreadPanel
+          type={type}
+          parentMessage={selectedMessage}
+          userId={userId}
+          onClose={() => setSelectedMessage(null)}
+        />
+      )}
+    </div>
   )
 }

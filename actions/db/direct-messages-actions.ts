@@ -2,16 +2,16 @@
 
 import { db } from "@/db/db"
 import {
-    DirectMessageReactions,
-    InsertDirectMessage,
-    SelectDirectChat,
-    SelectDirectMessage,
-    directChatsTable,
-    directMessagesTable,
-    usersTable
+  DirectMessageReactions,
+  InsertDirectMessage,
+  SelectDirectChat,
+  SelectDirectMessage,
+  directChatsTable,
+  directMessagesTable,
+  usersTable
 } from "@/db/schema"
 import { ActionState } from "@/types"
-import { and, asc, eq, isNull, or } from "drizzle-orm"
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm"
 
 export async function createDirectChatAction(
   user1Id: string,
@@ -137,16 +137,17 @@ export async function getDirectThreadMessagesAction(
   try {
     const messages = await db.query.directMessages.findMany({
       where: eq(directMessagesTable.parentId, parentId),
-      orderBy: asc(directMessagesTable.createdAt)
+      orderBy: directMessagesTable.createdAt
     })
+
     return {
       isSuccess: true,
-      message: "Direct thread messages retrieved successfully",
+      message: "Thread messages retrieved successfully",
       data: messages
     }
   } catch (error) {
-    console.error("Error getting direct thread messages:", error)
-    return { isSuccess: false, message: "Failed to get direct thread messages" }
+    console.error("Error getting thread messages:", error)
+    return { isSuccess: false, message: "Failed to get thread messages" }
   }
 }
 
@@ -239,5 +240,39 @@ export async function deleteDirectMessageAction(
   } catch (error) {
     console.error("Error deleting direct message:", error)
     return { isSuccess: false, message: "Failed to delete direct message" }
+  }
+}
+
+export async function createDirectThreadMessageAction(
+  message: InsertDirectMessage
+): Promise<ActionState<SelectDirectMessage>> {
+  try {
+    // Start a transaction
+    const result = await db.transaction(async tx => {
+      // Insert the new message
+      const [newMessage] = await tx
+        .insert(directMessagesTable)
+        .values(message)
+        .returning()
+
+      // Increment the reply count on the parent message
+      if (message.parentId) {
+        await tx
+          .update(directMessagesTable)
+          .set({ replyCount: sql`${directMessagesTable.replyCount} + 1` })
+          .where(eq(directMessagesTable.id, message.parentId))
+      }
+
+      return newMessage
+    })
+
+    return {
+      isSuccess: true,
+      message: "Thread message created successfully",
+      data: result
+    }
+  } catch (error) {
+    console.error("Error creating thread message:", error)
+    return { isSuccess: false, message: "Failed to create thread message" }
   }
 } 
