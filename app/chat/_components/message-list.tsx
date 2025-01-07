@@ -48,6 +48,7 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
   const [selectedMessage, setSelectedMessage] = useState<
     SelectMessage | SelectDirectMessage | null
   >(null)
+  const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
 
   const conversationId = type === "channel" ? channelId : chatId
 
@@ -56,14 +57,18 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
       const msg = transformMessage(newRecord)
       setMessages(prev => [...prev, msg])
 
-      if (!userMap[msg.userId]) {
-        const res = await getUserAction(msg.userId)
+      const messageUserId = type === "channel" 
+        ? (msg as SelectMessage).userId 
+        : (msg as SelectDirectMessage).senderId
+
+      if (!userMap[messageUserId]) {
+        const res = await getUserAction(messageUserId)
         if (res?.isSuccess && res.data) {
-          setUserMap(prev => ({ ...prev, [msg.userId]: res.data }))
+          setUserMap(prev => ({ ...prev, [messageUserId]: res.data }))
         }
       }
     },
-    [userMap]
+    [userMap, type]
   )
 
   const handleUpdate = useCallback(
@@ -86,8 +91,8 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
     table: type === "channel" ? "messages" : "direct_messages",
     filter:
       type === "channel"
-        ? `channel_id=eq.${conversationId || ""}`
-        : `chat_id=eq.${conversationId || ""}`,
+        ? `channel_id=eq.${conversationId}`
+        : `chat_id=eq.${conversationId}`,
     onInsert: handleInsert,
     onUpdate: handleUpdate,
     onDelete: handleDelete
@@ -116,7 +121,9 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
   }
 
   async function bulkLoadUsers(msgs: (SelectMessage | SelectDirectMessage)[]) {
-    const uniqueIds = Array.from(new Set(msgs.map(m => m.userId)))
+    const uniqueIds = Array.from(new Set(msgs.map(m => 
+      type === "channel" ? (m as SelectMessage).userId : (m as SelectDirectMessage).senderId
+    )))
     const missingIds = uniqueIds.filter(id => !userMap[id])
     if (missingIds.length === 0) return
 
@@ -132,6 +139,8 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
   }
 
   async function handleReaction(messageId: string, emoji: string) {
+    setOpenEmojiPicker(null)
+    
     if (type === "channel") {
       const message = messages.find(m => m.id === messageId) as SelectMessage
       const reactions = (message.reactions || {}) as Record<string, string[]>
@@ -166,7 +175,10 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
                 : message.createdAt
             const formattedDate = format(date || new Date(), "p")
 
-            const user = userMap[message.userId]
+            const messageUserId = type === "channel" 
+              ? (message as SelectMessage).userId 
+              : (message as SelectDirectMessage).senderId
+            const user = userMap[messageUserId]
             const displayName = user?.username || "Loading..."
 
             return (
@@ -188,7 +200,7 @@ export function MessageList({ type, channelId, chatId, userId }: MessageListProp
                     </a>
                   )}
                   <div className="mt-2 flex items-center gap-2">
-                    <Popover>
+                    <Popover open={openEmojiPicker === message.id} onOpenChange={(open) => setOpenEmojiPicker(open ? message.id : null)}>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="sm" className="size-8 rounded-full p-0">
                           <Smile className="size-4" />
