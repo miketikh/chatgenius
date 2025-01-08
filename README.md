@@ -4,7 +4,7 @@ Gauntlet [project #1](https://docs.google.com/document/d/1N4RzeByy7erwRPaH3wL99b
 
 ![Chat Genius Screenshot](/public/screenshots/screenshot.png)
 
-Deployed and testable [here](https://chatgenius-green.vercel.app/chat)
+Deployed and testable [here](https://chatgenius-green.vercel.app)
 
 ## Features supported
 
