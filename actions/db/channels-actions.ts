@@ -16,10 +16,15 @@ export async function createChannelAction(
   members: string[]
 ): Promise<ActionState<SelectChannel>> {
   try {
+    // channel now MUST include channel.workspaceId
+    if (!channel.workspaceId) {
+      return { isSuccess: false, message: "workspaceId is required" }
+    }
+
     const [newChannel] = await db.insert(channelsTable).values(channel).returning()
 
     // Add members to the channel
-    const memberInserts = members.map((userId) => ({
+    const memberInserts = members.map(userId => ({
       channelId: newChannel.id,
       userId
     }))

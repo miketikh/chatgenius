@@ -6,6 +6,11 @@ export const channelTypeEnum = pgEnum("channel_type", ["public", "private"])
 
 export const channelsTable = pgTable("channels", {
   id: uuid("id").defaultRandom().primaryKey(),
+  // NEW: reference to workspace
+  workspaceId: uuid("workspace_id")
+    .references(() => workspacesTable.id, { onDelete: "cascade" })
+    .notNull(),
+
   name: text("name").notNull(),
   description: text("description"),
   type: channelTypeEnum("type").default("public").notNull(),

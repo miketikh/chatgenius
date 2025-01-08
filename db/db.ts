@@ -10,7 +10,9 @@ import {
   directChatsTable,
   directMessagesTable,
   messagesTable,
-  usersTable
+  usersTable,
+  workspacesTable,
+  workspaceMembersTable
 } from "@/db/schema"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
@@ -24,6 +26,10 @@ export const db = drizzle(client, {
     channelMembers: channelMembersTable,
     messages: messagesTable,
     directChats: directChatsTable,
-    directMessages: directMessagesTable
+    directMessages: directMessagesTable,
+
+    // New:
+    workspaces: workspacesTable,
+    workspaceMembers: workspaceMembersTable
   }
 })
