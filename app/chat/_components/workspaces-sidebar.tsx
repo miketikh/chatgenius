@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SelectUser, SelectWorkspace } from "@/db/schema"
 import { cn } from "@/lib/utils"
+import { useClerk } from "@clerk/clerk-react"
 import { SignOutButton } from "@clerk/nextjs"
 import { Bell, Home, LogOut, MessageSquare, Plus, Settings } from "lucide-react"
 import Image from "next/image"
@@ -42,6 +43,7 @@ export function WorkspacesSidebar({
   user
 }: WorkspacesSidebarProps) {
   const router = useRouter()
+  const clerk = useClerk()
   const [showDialog, setShowDialog] = useState(false)
   const [workspaceName, setWorkspaceName] = useState("")
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(
@@ -244,16 +246,11 @@ export function WorkspacesSidebar({
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem asChild>
-              <a
-                href="https://accounts.clerk.com/account"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2"
-              >
+            <DropdownMenuItem onSelect={() => clerk.openUserProfile()}>
+              <div className="flex items-center gap-2">
                 <Settings className="size-4" />
                 Manage Account
-              </a>
+              </div>
             </DropdownMenuItem>
 
             <DropdownMenuItem asChild>

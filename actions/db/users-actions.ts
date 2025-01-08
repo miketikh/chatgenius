@@ -9,15 +9,28 @@ export async function createUserAction(
   user: InsertUser
 ): Promise<ActionState<SelectUser>> {
   try {
-    const [newUser] = await db.insert(usersTable).values(user).returning()
+    const [newUser] = await db
+      .insert(usersTable)
+      .values(user)
+      .onConflictDoUpdate({
+        target: usersTable.id,
+        set: {
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          imageUrl: user.imageUrl,
+          updatedAt: new Date()
+        }
+      })
+      .returning()
     return {
       isSuccess: true,
-      message: "User created successfully",
+      message: "User created/updated successfully",
       data: newUser
     }
   } catch (error) {
-    console.error("Error creating user:", error)
-    return { isSuccess: false, message: "Failed to create user" }
+    console.error("Error creating/updating user:", error)
+    return { isSuccess: false, message: "Failed to create/update user" }
   }
 }
 
