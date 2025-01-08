@@ -410,29 +410,6 @@ export function Sidebar({ userId }: SidebarProps) {
         </div>
       </ScrollArea>
 
-      {/* Example footer with user presence (placeholder logic) */}
-      <div className="mt-2 flex items-center border-t p-2">
-        {/* Replace with user avatar or image if available */}
-        <div className="bg-primary/20 mr-2 size-8 rounded-full" />
-        <div className="flex-1">
-          <div className="text-sm font-semibold">
-            My Status: {"offline"} {/* e.g. userStatus from server */}
-          </div>
-          {/* e.g. if you have a customStatus */}
-          {/* <div className="text-xs text-muted-foreground">
-            {customStatus}
-          </div> */}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => alert("Open status dialog")}
-        >
-          {/* e.g. <Edit3 className="size-4" /> */}
-          Edit
-        </Button>
-      </div>
-
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>

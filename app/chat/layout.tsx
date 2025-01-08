@@ -39,17 +39,28 @@ export default async function ChatLayout({
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      {/* Top bar */}
-      <div className="w-full border-b">
-        <TopSearchBar userId={userId} />
+    <div className="flex h-screen">
+      {/* Workspaces sidebar */}
+      <div className="flex h-full w-16 border-r border-blue-700 bg-gradient-to-b from-blue-900 to-blue-800">
+        <WorkspacesSidebar
+          userId={userId}
+          userWorkspaces={[]}
+          user={userResult.isSuccess ? userResult.data : undefined}
+        />
       </div>
 
-      {/* Main content: 2 sidebars + main children */}
-      <div className="flex flex-1">
-        <WorkspacesSidebar userId={userId} userWorkspaces={[]} />
-        <Sidebar userId={userId} />
-        <main className="flex-1 overflow-hidden">{children}</main>
+      {/* Main content */}
+      <div className="flex flex-1 flex-col">
+        {/* Top bar */}
+        <div className="flex min-h-12 items-center border-b border-blue-700 bg-gradient-to-r from-blue-900 to-blue-800 p-2 text-white">
+          <TopSearchBar userId={userId} />
+        </div>
+
+        {/* Channels sidebar + content */}
+        <div className="flex flex-1">
+          <Sidebar userId={userId} />
+          <main className="flex-1 overflow-hidden">{children}</main>
+        </div>
       </div>
     </div>
   )
