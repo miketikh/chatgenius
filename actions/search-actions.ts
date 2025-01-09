@@ -63,24 +63,28 @@ export async function searchMessagesAction(
         })
         .from(messagesTable)
         .innerJoin(
-          channelMembersTable,
-          and(
-            eq(channelMembersTable.channelId, messagesTable.channelId),
-            eq(channelMembersTable.userId, userId)
-          )
-        )
-        .innerJoin(
           channelsTable,
           and(
             eq(channelsTable.id, messagesTable.channelId),
             options.workspaceId ? eq(channelsTable.workspaceId, options.workspaceId) : undefined
           )
         )
+        .leftJoin(
+          channelMembersTable,
+          and(
+            eq(channelMembersTable.channelId, messagesTable.channelId),
+            eq(channelMembersTable.userId, userId)
+          )
+        )
         .innerJoin(usersTable, eq(messagesTable.userId, usersTable.id))
         .where(
           and(
             ilike(messagesTable.content, `%${query}%`),
-            options.channelId ? eq(messagesTable.channelId, options.channelId) : undefined
+            options.channelId ? eq(messagesTable.channelId, options.channelId) : undefined,
+            or(
+              eq(channelsTable.type, "public"),
+              eq(channelMembersTable.userId, userId)
+            )
           )
         )
 

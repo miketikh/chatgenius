@@ -9,7 +9,8 @@ import {
   ArrowRight,
   Clock,
   MessageSquare,
-  Search
+  Search,
+  X
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
@@ -255,7 +256,7 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
           <Search className="size-4 text-white/60" />
         </div>
         <Input
-          className="border-white/20 bg-white/10 pl-9 text-white placeholder:text-white/60 focus-visible:ring-white/30"
+          className="border-white/20 bg-white/10 px-9 text-white placeholder:text-white/60 focus-visible:ring-white/30"
           placeholder="Search messages (2+ characters)..."
           value={query}
           onChange={e => onChangeQuery(e.target.value)}
@@ -266,58 +267,118 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
             }
           }}
         />
+        {query && (
+          <button
+            onClick={() => {
+              setQuery("")
+              setResults({
+                channelMessages: [],
+                directMessages: [],
+                channelOnlyMessages: []
+              })
+              setShowDropdown(false)
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+          >
+            <X className="size-4" />
+          </button>
+        )}
 
-        {showDropdown &&
-          (results.channelOnlyMessages.length > 0 ||
-            results.directMessages.length > 0) && (
-            <div className="absolute top-full z-50 mt-1 max-h-[500px] w-full overflow-auto rounded-md border border-white/20 bg-black/95 p-4 shadow-lg">
-              {currentChannelId && results.channelOnlyMessages.length > 0 && (
-                <div className="mb-6 space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wider text-white/60">
-                    Results from #{currentChannelName}
-                  </div>
-                  {results.channelOnlyMessages.map(msg => (
-                    <div
-                      key={msg.id}
-                      className="cursor-pointer"
-                      onClick={() => {
-                        router.push(
-                          `/workspace/${effectiveWorkspaceId}/channel/${currentChannelId}`
-                        )
-                        setShowDropdown(false)
-                      }}
-                    >
-                      {formatMessagePreview(msg)}
-                    </div>
-                  ))}
+        {showDropdown && (
+          <div className="absolute top-full z-50 mt-1 max-h-[500px] w-full overflow-auto rounded-md border border-white/20 bg-black/95 p-4 shadow-lg">
+            <div className="mb-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium uppercase tracking-wider text-white/60">
+                  Search Options
                 </div>
-              )}
-
-              {results.directMessages.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wider text-white/60">
-                    Direct Messages
-                  </div>
-                  {results.directMessages.map(msg => (
-                    <div
-                      key={msg.id}
-                      className="cursor-pointer"
-                      onClick={() => {
-                        if (msg.chatId) {
-                          router.push(
-                            `/workspace/${effectiveWorkspaceId}/dm/${msg.chatId}`
-                          )
-                        }
-                        setShowDropdown(false)
-                      }}
-                    >
-                      {formatMessagePreview(msg)}
-                    </div>
-                  ))}
+                <button
+                  onClick={() => setShowDropdown(false)}
+                  className="text-white/60 hover:text-white"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <div
+                className="flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm text-white hover:bg-white/10"
+                onClick={() => {
+                  router.push(
+                    `/workspace/${effectiveWorkspaceId}/search?query=${encodeURIComponent(
+                      query
+                    )}`
+                  )
+                  setShowDropdown(false)
+                }}
+              >
+                <Search className="size-4" />
+                <span>Search for "{query}" in all channels and messages</span>
+              </div>
+              {currentChannelId && (
+                <div
+                  className="flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm text-white hover:bg-white/10"
+                  onClick={() => {
+                    router.push(
+                      `/workspace/${effectiveWorkspaceId}/search?query=${encodeURIComponent(
+                        query
+                      )}&channel=${currentChannelId}`
+                    )
+                    setShowDropdown(false)
+                  }}
+                >
+                  <Search className="size-4" />
+                  <span>
+                    Search for "{query}" in #{currentChannelName}
+                  </span>
                 </div>
               )}
             </div>
-          )}
+
+            {currentChannelId && results.channelOnlyMessages.length > 0 && (
+              <div className="mb-6 space-y-2">
+                <div className="text-xs font-medium uppercase tracking-wider text-white/60">
+                  Results from #{currentChannelName}
+                </div>
+                {results.channelOnlyMessages.map(msg => (
+                  <div
+                    key={msg.id}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      router.push(
+                        `/workspace/${effectiveWorkspaceId}/channel/${currentChannelId}`
+                      )
+                      setShowDropdown(false)
+                    }}
+                  >
+                    {formatMessagePreview(msg)}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {results.directMessages.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-wider text-white/60">
+                  Direct Messages
+                </div>
+                {results.directMessages.map(msg => (
+                  <div
+                    key={msg.id}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      if (msg.chatId) {
+                        router.push(
+                          `/workspace/${effectiveWorkspaceId}/dm/${msg.chatId}`
+                        )
+                      }
+                      setShowDropdown(false)
+                    }}
+                  >
+                    {formatMessagePreview(msg)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-4">
