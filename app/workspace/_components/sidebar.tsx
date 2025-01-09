@@ -10,6 +10,7 @@ import {
   getUserDirectChatsAction
 } from "@/actions/db/direct-messages-actions"
 import { getUserAction, searchUsersAction } from "@/actions/db/users-actions"
+import { getWorkspaceAction } from "@/actions/db/workspaces-actions"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -28,8 +29,12 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
-import { ThemeSwitcher } from "@/components/utilities/theme-switcher"
-import { SelectChannel, SelectDirectChat, SelectUser } from "@/db/schema"
+import {
+  SelectChannel,
+  SelectDirectChat,
+  SelectUser,
+  SelectWorkspace
+} from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { cn } from "@/lib/utils"
 import { Hash, MessageSquare, Minus, Plus } from "lucide-react"
@@ -47,6 +52,7 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
   const [channels, setChannels] = useState<SelectChannel[]>([])
   const [directChats, setDirectChats] = useState<SelectDirectChat[]>([])
   const [chatUsers, setChatUsers] = useState<{ [key: string]: SelectUser }>({})
+  const [workspace, setWorkspace] = useState<Pick<SelectWorkspace, "name">>()
   const [isCreatingChannel, setIsCreatingChannel] = useState(false)
   const [isCreatingDirectMessage, setIsCreatingDirectMessage] = useState(false)
   const [newChannelName, setNewChannelName] = useState("")
@@ -69,15 +75,15 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
   useRealtimeTable<SelectChannel>({
     table: "channels",
     filter: `workspace_id=eq.${workspaceId}`, // only subscribe to channels in this workspace
-    onInsert: useCallback(newChannel => {
+    onInsert: useCallback((newChannel: SelectChannel) => {
       setChannels(prev => [...prev, newChannel])
     }, []),
-    onUpdate: useCallback(updatedChannel => {
+    onUpdate: useCallback((updatedChannel: SelectChannel) => {
       setChannels(prev =>
         prev.map(ch => (ch.id === updatedChannel.id ? updatedChannel : ch))
       )
     }, []),
-    onDelete: useCallback(deletedChannel => {
+    onDelete: useCallback((deletedChannel: SelectChannel) => {
       setChannels(prev => prev.filter(ch => ch.id !== deletedChannel.id))
     }, [])
   })
@@ -85,15 +91,15 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
   useRealtimeTable<SelectDirectChat>({
     table: "direct_chats",
     filter: `workspace_id=eq.${workspaceId}`,
-    onInsert: useCallback(newChat => {
+    onInsert: useCallback((newChat: SelectDirectChat) => {
       setDirectChats(prev => [...prev, newChat])
     }, []),
-    onUpdate: useCallback(updatedChat => {
+    onUpdate: useCallback((updatedChat: SelectDirectChat) => {
       setDirectChats(prev =>
         prev.map(ch => (ch.id === updatedChat.id ? updatedChat : ch))
       )
     }, []),
-    onDelete: useCallback(deletedChat => {
+    onDelete: useCallback((deletedChat: SelectDirectChat) => {
       setDirectChats(prev => prev.filter(ch => ch.id !== deletedChat.id))
     }, [])
   })
@@ -101,6 +107,7 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
   useEffect(() => {
     loadChannels()
     loadDirectChats()
+    loadWorkspace()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
@@ -132,6 +139,15 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
         {}
       )
       setChatUsers(newChatUsers)
+    }
+  }
+
+  async function loadWorkspace() {
+    if (!workspaceId) return
+    const res = await getWorkspaceAction(workspaceId)
+    if (res.isSuccess) {
+      const { name } = res.data
+      setWorkspace({ name })
     }
   }
 
@@ -198,12 +214,15 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
 
   return (
     <div className="bg-muted/10 flex h-full w-60 flex-col border-r">
-      <div className="flex h-12 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="size-5" />
-          <span className="font-semibold">ChatGenius</span>
+      <div className="flex h-12 items-center gap-2 border-b px-4">
+        <div className="bg-primary/10 flex size-6 shrink-0 items-center justify-center rounded-md">
+          <MessageSquare className="size-4" />
         </div>
-        <ThemeSwitcher />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold">
+            {workspace?.name || "Loading..."}
+          </div>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 px-2">
