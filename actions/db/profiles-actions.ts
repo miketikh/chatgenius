@@ -8,9 +8,9 @@ Contains server actions related to profiles in the DB.
 
 import { db } from "@/db/db"
 import {
-  InsertProfile,
-  profilesTable,
-  SelectProfile
+    InsertProfile,
+    profilesTable,
+    SelectProfile
 } from "@/db/schema/profiles-schema"
 import { ActionState } from "@/types"
 import { eq } from "drizzle-orm"
@@ -124,5 +124,46 @@ export async function deleteProfileAction(
   } catch (error) {
     console.error("Error deleting profile:", error)
     return { isSuccess: false, message: "Failed to delete profile" }
+  }
+}
+
+export async function updateLastWorkspaceAction(
+  userId: string,
+  workspaceId: string
+): Promise<ActionState<SelectProfile>> {
+  try {
+    const [profile] = await db
+      .update(profilesTable)
+      .set({ lastWorkspaceId: workspaceId })
+      .where(eq(profilesTable.userId, userId))
+      .returning()
+
+    return {
+      isSuccess: true,
+      message: "Last workspace updated successfully",
+      data: profile
+    }
+  } catch (error) {
+    console.error("Error updating last workspace:", error)
+    return { isSuccess: false, message: "Failed to update last workspace" }
+  }
+}
+
+export async function getProfileAction(
+  userId: string
+): Promise<ActionState<SelectProfile | undefined>> {
+  try {
+    const profile = await db.query.profiles.findFirst({
+      where: eq(profilesTable.userId, userId)
+    })
+
+    return {
+      isSuccess: true,
+      message: "Profile retrieved successfully",
+      data: profile
+    }
+  } catch (error) {
+    console.error("Error getting profile:", error)
+    return { isSuccess: false, message: "Failed to get profile" }
   }
 }

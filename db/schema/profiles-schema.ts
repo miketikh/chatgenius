@@ -4,7 +4,8 @@ Defines the database schema for profiles.
 </ai_context>
 */
 
-import { pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core"
+import { pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import { workspacesTable } from "./workspaces-schema"
 
 export const membershipEnum = pgEnum("membership", ["free", "pro"])
 
@@ -13,6 +14,9 @@ export const profilesTable = pgTable("profiles", {
   membership: membershipEnum("membership").notNull().default("free"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  lastWorkspaceId: uuid("last_workspace_id").references(
+    () => workspacesTable.id
+  ),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

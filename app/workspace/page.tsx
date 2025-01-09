@@ -1,5 +1,6 @@
 "use server"
 
+import { getProfileAction } from "@/actions/db/profiles-actions"
 import { getUserWorkspacesAction } from "@/actions/db/workspaces-actions"
 import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
@@ -13,6 +14,12 @@ export default async function WorkspaceIndexPage() {
   const { userId } = await auth()
   if (!userId) {
     redirect("/")
+  }
+
+  // Check for last used workspace
+  const profileRes = await getProfileAction(userId)
+  if (profileRes.isSuccess && profileRes.data?.lastWorkspaceId) {
+    redirect(`/workspace/${profileRes.data.lastWorkspaceId}`)
   }
 
   const workspaceRes = await getUserWorkspacesAction(userId)

@@ -1,5 +1,6 @@
 "use server"
 
+import { updateLastWorkspaceAction } from "@/actions/db/profiles-actions"
 import { getUserAction } from "@/actions/db/users-actions"
 import {
   getUserWorkspacesAction,
@@ -46,6 +47,9 @@ export default async function WorkspaceLayout({
   if (!workspaceRes.isSuccess) {
     return <div>Error loading workspace</div>
   }
+
+  // Update last used workspace
+  await updateLastWorkspaceAction(userId, workspaceId)
 
   return (
     <div className="flex h-screen overflow-hidden">
