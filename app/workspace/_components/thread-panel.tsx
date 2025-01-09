@@ -49,6 +49,15 @@ function transformMessage<T extends { createdAt?: string | Date }>(msg: T) {
   return cloned
 }
 
+function getMessageUsername(
+  message: SelectMessage | SelectDirectMessage
+): string {
+  if ("username" in message) {
+    return message.username
+  }
+  return message.senderUsername
+}
+
 export function ThreadPanel({
   type,
   parentMessage,
@@ -159,7 +168,7 @@ export function ThreadPanel({
         await createThreadMessageAction({
           channelId: pm.channelId,
           userId,
-          username: pm.username,
+          username: getMessageUsername(pm),
           content: newReply,
           parentId: pm.id
         })
@@ -168,7 +177,7 @@ export function ThreadPanel({
         await createDirectThreadMessageAction({
           chatId: pm.chatId,
           senderId: userId,
-          senderUsername: pm.senderUsername,
+          senderUsername: getMessageUsername(pm),
           content: newReply,
           parentId: pm.id
         })
@@ -260,7 +269,7 @@ export function ThreadPanel({
    * Render
    */
   return (
-    <div className="flex h-full w-[400px] flex-col border-l">
+    <div className="bg-background flex h-full w-[400px] flex-col border-l">
       <div className="flex items-center justify-between border-b p-4">
         <h3 className="text-lg font-semibold">Thread</h3>
         <Button

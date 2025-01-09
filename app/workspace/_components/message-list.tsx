@@ -24,7 +24,6 @@ import { format } from "date-fns"
 import { MessageSquare, Smile } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
-import { ThreadPanel } from "./thread-panel"
 
 function transformMessage<
   T extends { createdAt?: string | Date; updatedAt?: string | Date }
@@ -44,21 +43,20 @@ interface MessageListProps {
   channelId?: string
   chatId?: string
   userId: string
+  onThreadSelect?: (message: SelectMessage | SelectDirectMessage) => void
 }
 
 export function MessageList({
   type,
   channelId,
   chatId,
-  userId
+  userId,
+  onThreadSelect
 }: MessageListProps) {
   const [messages, setMessages] = useState<
     (SelectMessage | SelectDirectMessage)[]
   >([])
   const [userMap, setUserMap] = useState<Record<string, SelectUser>>({})
-  const [selectedMessage, setSelectedMessage] = useState<
-    SelectMessage | SelectDirectMessage | null
-  >(null)
   const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
 
   const conversationId = type === "channel" ? channelId : chatId
@@ -187,112 +185,97 @@ export function MessageList({
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
-          {messages.map(message => {
-            const date =
-              typeof message.createdAt === "string"
-                ? new Date(message.createdAt + "Z")
-                : message.createdAt
-            const formattedDate = format(date || new Date(), "p")
+    <ScrollArea className="flex-1 p-4">
+      <div className="space-y-4">
+        {messages.map(message => {
+          const date =
+            typeof message.createdAt === "string"
+              ? new Date(message.createdAt + "Z")
+              : message.createdAt
+          const formattedDate = format(date || new Date(), "p")
 
-            const messageUserId =
-              type === "channel"
-                ? (message as SelectMessage).userId
-                : (message as SelectDirectMessage).senderId
-            const user = userMap[messageUserId]
-            const displayName = user?.username || "Loading..."
+          const messageUserId =
+            type === "channel"
+              ? (message as SelectMessage).userId
+              : (message as SelectDirectMessage).senderId
+          const user = userMap[messageUserId]
+          const displayName = user?.username || "Loading..."
 
-            return (
-              <div key={message.id} className="flex items-start gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{displayName}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {formattedDate}
-                    </span>
-                  </div>
-                  <p className="mt-1">{message.content}</p>
-                  {message.fileUrl && (
-                    <a
-                      href={message.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-block text-sm text-blue-500 hover:underline"
-                    >
-                      {message.fileName}
-                    </a>
-                  )}
-                  <div className="mt-2 flex items-center gap-2">
-                    <Popover
-                      open={openEmojiPicker === message.id}
-                      onOpenChange={open =>
-                        setOpenEmojiPicker(open ? message.id : null)
-                      }
-                    >
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-8 rounded-full p-0"
-                        >
-                          <Smile className="size-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80 p-0">
-                        <EmojiPicker
-                          onEmojiSelect={emoji =>
-                            handleReaction(message.id, emoji)
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="size-8 rounded-full p-0"
-                      onClick={() => setSelectedMessage(message)}
-                    >
-                      <MessageSquare className="size-4" />
-                      {message.replyCount > 0 && (
-                        <span className="ml-1 text-xs">
-                          {message.replyCount}
-                        </span>
-                      )}
-                    </Button>
-                    {Object.entries(
-                      (message.reactions as Record<string, string[]>) || {}
-                    ).map(([emoji, users]) => (
+          return (
+            <div key={message.id} className="flex items-start gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{displayName}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {formattedDate}
+                  </span>
+                </div>
+                <p className="mt-1">{message.content}</p>
+                {message.fileUrl && (
+                  <a
+                    href={message.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-sm text-blue-500 hover:underline"
+                  >
+                    {message.fileName}
+                  </a>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  <Popover
+                    open={openEmojiPicker === message.id}
+                    onOpenChange={open =>
+                      setOpenEmojiPicker(open ? message.id : null)
+                    }
+                  >
+                    <PopoverTrigger asChild>
                       <Button
-                        key={emoji}
                         variant="ghost"
                         size="sm"
-                        className="h-6 gap-1 px-2"
-                        onClick={() => handleReaction(message.id, emoji)}
+                        className="size-8 rounded-full p-0"
                       >
-                        {emoji}
-                        <span className="text-xs">{users.length}</span>
+                        <Smile className="size-4" />
                       </Button>
-                    ))}
-                  </div>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0">
+                      <EmojiPicker
+                        onEmojiSelect={emoji =>
+                          handleReaction(message.id, emoji)
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="size-8 rounded-full p-0"
+                    onClick={() => onThreadSelect?.(message)}
+                  >
+                    <MessageSquare className="size-4" />
+                    {message.replyCount > 0 && (
+                      <span className="ml-1 text-xs">{message.replyCount}</span>
+                    )}
+                  </Button>
+                  {Object.entries(
+                    (message.reactions as Record<string, string[]>) || {}
+                  ).map(([emoji, users]) => (
+                    <Button
+                      key={emoji}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-2"
+                      onClick={() => handleReaction(message.id, emoji)}
+                    >
+                      {emoji}
+                      <span className="text-xs">{users.length}</span>
+                    </Button>
+                  ))}
                 </div>
               </div>
-            )
-          })}
-        </div>
-      </ScrollArea>
-
-      {selectedMessage && (
-        <ThreadPanel
-          type={type}
-          parentMessage={selectedMessage}
-          userId={userId}
-          onClose={() => setSelectedMessage(null)}
-          userMap={userMap}
-          bulkLoadUsers={bulkLoadUsers}
-        />
-      )}
-    </div>
+            </div>
+          )
+        })}
+      </div>
+    </ScrollArea>
   )
 }

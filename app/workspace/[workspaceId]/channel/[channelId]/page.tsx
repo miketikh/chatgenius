@@ -1,8 +1,7 @@
 "use server"
 
 import { getChannelAction } from "@/actions/db/channels-actions"
-import { MessageInput } from "@/app/workspace/_components/message-input"
-import { MessageList } from "@/app/workspace/_components/message-list"
+import { ChannelContent } from "@/app/workspace/_components/channel-content"
 import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 
@@ -32,14 +31,11 @@ export default async function ChannelPage({ params }: ChannelPageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex min-h-12 items-center border-b px-4">
-        <h1 className="text-lg font-semibold">#{channelRes.data.name}</h1>
-      </div>
-
-      <MessageList type="channel" channelId={channelId} userId={userId} />
-
-      <MessageInput type="channel" channelId={channelId} userId={userId} />
-    </div>
+    <ChannelContent
+      type="channel"
+      channelId={channelId}
+      userId={userId}
+      channelName={channelRes.data.name}
+    />
   )
 }
