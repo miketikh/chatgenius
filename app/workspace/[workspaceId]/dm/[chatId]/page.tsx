@@ -1,13 +1,13 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
-import { redirect } from "next/navigation"
+import { getUserAction } from "@/actions/db/users-actions"
+import { MessageInput } from "@/app/workspace/_components/message-input"
+import { MessageList } from "@/app/workspace/_components/message-list"
 import { db } from "@/db/db"
 import { directChatsTable } from "@/db/schema"
-import { eq, and } from "drizzle-orm"
-import { getUserAction } from "@/actions/db/users-actions"
-import { MessageList } from "@/app/chat/_components/message-list"
-import { MessageInput } from "@/app/chat/_components/message-input"
+import { auth } from "@clerk/nextjs/server"
+import { and, eq } from "drizzle-orm"
+import { redirect } from "next/navigation"
 
 interface DirectMessagePageProps {
   params: {

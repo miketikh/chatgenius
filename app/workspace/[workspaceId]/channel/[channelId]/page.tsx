@@ -1,10 +1,10 @@
 "use server"
 
+import { getChannelAction } from "@/actions/db/channels-actions"
+import { MessageInput } from "@/app/workspace/_components/message-input"
+import { MessageList } from "@/app/workspace/_components/message-list"
 import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
-import { getChannelAction } from "@/actions/db/channels-actions"
-import { MessageList } from "@/app/chat/_components/message-list"
-import { MessageInput } from "@/app/chat/_components/message-input"
 
 interface ChannelPageProps {
   params: {

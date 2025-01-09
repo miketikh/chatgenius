@@ -2,15 +2,15 @@
 
 import { db } from "@/db/db"
 import {
-  InsertWorkspace,
-  SelectWorkspace,
-  workspacesTable,
-  workspaceMembersTable,
-  InsertWorkspaceMember,
-  SelectWorkspaceMember
+    InsertWorkspace,
+    InsertWorkspaceMember,
+    SelectWorkspace,
+    SelectWorkspaceMember,
+    workspaceMembersTable,
+    workspacesTable
 } from "@/db/schema"
 import { ActionState } from "@/types"
-import { eq, or, and } from "drizzle-orm"
+import { and, eq, or } from "drizzle-orm"
 
 export async function createWorkspaceAction(
   workspaceData: InsertWorkspace,
@@ -148,5 +148,28 @@ export async function deleteWorkspaceAction(
   } catch (error) {
     console.error("Error deleting workspace:", error)
     return { isSuccess: false, message: "Failed to delete workspace" }
+  }
+}
+
+export async function getSearchableWorkspacesAction(
+  userId: string
+): Promise<ActionState<SelectWorkspace[]>> {
+  try {
+    const workspaces = await db.query.workspacesTable.findMany({
+      where: or(
+        eq(workspacesTable.type, "public"),
+        eq(workspacesTable.creatorId, userId)
+      ),
+      orderBy: workspacesTable.name
+    })
+
+    return {
+      isSuccess: true,
+      message: "Workspaces retrieved successfully",
+      data: workspaces
+    }
+  } catch (error) {
+    console.error("Error getting workspaces:", error)
+    return { isSuccess: false, message: "Failed to get workspaces" }
   }
 }

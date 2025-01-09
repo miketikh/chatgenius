@@ -2,9 +2,9 @@
 
 import { getUserAction } from "@/actions/db/users-actions"
 import { getWorkspaceAction } from "@/actions/db/workspaces-actions"
-import { Sidebar } from "@/app/chat/_components/sidebar"
-import { TopSearchBar } from "@/app/chat/_components/top-search-bar"
-import { WorkspacesSidebar } from "@/app/chat/_components/workspaces-sidebar"
+import { Sidebar } from "@/app/workspace/_components/sidebar"
+import { TopSearchBar } from "@/app/workspace/_components/top-search-bar"
+import { WorkspacesSidebar } from "@/app/workspace/_components/workspaces-sidebar"
 import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 
@@ -50,7 +50,7 @@ export default async function WorkspaceLayout({
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="flex h-12 items-center bg-blue-900 px-4">
+        <div className="flex min-h-12 items-center bg-blue-900 p-2">
           <TopSearchBar userId={userId} workspaceId={params.workspaceId} />
         </div>
 
