@@ -8,9 +8,10 @@ import { useState, useTransition } from "react"
 
 interface TopSearchBarProps {
   userId: string
+  workspaceId?: string // NEW
 }
 
-export function TopSearchBar({ userId }: TopSearchBarProps) {
+export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<{
@@ -23,7 +24,8 @@ export function TopSearchBar({ userId }: TopSearchBarProps) {
   async function handleSearch() {
     if (!query.trim()) return
     startTransition(async () => {
-      const res = await searchMessagesAction(query, userId)
+      // Modify your search to pass workspaceId so you only search inside that workspace
+      const res = await searchMessagesAction(query, userId, workspaceId)
       if (res.isSuccess) {
         setResults(res.data)
       }
@@ -48,7 +50,7 @@ export function TopSearchBar({ userId }: TopSearchBarProps) {
         </button>
         <button
           className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-white/20"
-          onClick={() => router.push("/chat/history")}
+          onClick={() => router.push("/workspace")}
         >
           <Clock className="size-4" />
         </button>

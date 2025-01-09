@@ -13,21 +13,22 @@ import {
 import { ActionState } from "@/types"
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm"
 
+/**
+ * Create a direct chat within a specific workspace.
+ */
 export async function createDirectChatAction(
   user1Id: string,
-  user2Id: string
+  user2Id: string,
+  workspaceId: string
 ): Promise<ActionState<SelectDirectChat>> {
   try {
-    // Check if chat already exists
+    // Check if chat already exists in THIS workspace
     const existingChat = await db.query.directChats.findFirst({
-      where: or(
-        and(
-          eq(directChatsTable.user1Id, user1Id),
-          eq(directChatsTable.user2Id, user2Id)
-        ),
-        and(
-          eq(directChatsTable.user1Id, user2Id),
-          eq(directChatsTable.user2Id, user1Id)
+      where: and(
+        eq(directChatsTable.workspaceId, workspaceId),
+        or(
+          and(eq(directChatsTable.user1Id, user1Id), eq(directChatsTable.user2Id, user2Id)),
+          and(eq(directChatsTable.user1Id, user2Id), eq(directChatsTable.user2Id, user1Id))
         )
       )
     })
@@ -35,14 +36,14 @@ export async function createDirectChatAction(
     if (existingChat) {
       return {
         isSuccess: true,
-        message: "Direct chat already exists",
+        message: "Direct chat already exists for these users in this workspace",
         data: existingChat
       }
     }
 
     const [newChat] = await db
       .insert(directChatsTable)
-      .values({ user1Id, user2Id })
+      .values({ user1Id, user2Id, workspaceId })
       .returning()
 
     return {
@@ -56,14 +57,18 @@ export async function createDirectChatAction(
   }
 }
 
+/**
+ * Filter direct chats by user + workspace
+ */
 export async function getUserDirectChatsAction(
-  userId: string
+  userId: string,
+  workspaceId: string
 ): Promise<ActionState<SelectDirectChat[]>> {
   try {
     const chats = await db.query.directChats.findMany({
-      where: or(
-        eq(directChatsTable.user1Id, userId),
-        eq(directChatsTable.user2Id, userId)
+      where: and(
+        eq(directChatsTable.workspaceId, workspaceId),
+        or(eq(directChatsTable.user1Id, userId), eq(directChatsTable.user2Id, userId))
       )
     })
     return {
@@ -207,7 +212,7 @@ export async function removeDirectMessageReactionAction(
 
     const reactions = message.reactions as DirectMessageReactions
     if (reactions[emoji]) {
-      reactions[emoji] = reactions[emoji].filter((id) => id !== userId)
+      reactions[emoji] = reactions[emoji].filter(id => id !== userId)
       if (reactions[emoji].length === 0) {
         delete reactions[emoji]
       }
@@ -250,15 +255,13 @@ export async function createDirectThreadMessageAction(
   message: InsertDirectMessage
 ): Promise<ActionState<SelectDirectMessage>> {
   try {
-    // Start a transaction
+    // Transaction to insert new message + bump reply count on parent
     const result = await db.transaction(async tx => {
-      // Insert the new message
       const [newMessage] = await tx
         .insert(directMessagesTable)
         .values(message)
         .returning()
 
-      // Increment the reply count on the parent message
       if (message.parentId) {
         await tx
           .update(directMessagesTable)

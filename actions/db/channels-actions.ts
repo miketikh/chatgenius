@@ -2,11 +2,11 @@
 
 import { db } from "@/db/db"
 import {
-    channelMembersTable,
-    channelsTable,
-    InsertChannel,
-    SelectChannel,
-    SelectChannelMember
+  channelMembersTable,
+  channelsTable,
+  InsertChannel,
+  SelectChannel,
+  SelectChannelMember
 } from "@/db/schema"
 import { ActionState } from "@/types"
 import { and, eq, or } from "drizzle-orm"
@@ -16,14 +16,12 @@ export async function createChannelAction(
   members: string[]
 ): Promise<ActionState<SelectChannel>> {
   try {
-    // channel now MUST include channel.workspaceId
     if (!channel.workspaceId) {
       return { isSuccess: false, message: "workspaceId is required" }
     }
 
     const [newChannel] = await db.insert(channelsTable).values(channel).returning()
 
-    // Add members to the channel
     const memberInserts = members.map(userId => ({
       channelId: newChannel.id,
       userId
@@ -62,12 +60,17 @@ export async function getChannelAction(
   }
 }
 
+/**
+ * Now also requires workspaceId
+ */
 export async function getUserChannelsAction(
-  userId: string
+  userId: string,
+  workspaceId: string
 ): Promise<ActionState<SelectChannel[]>> {
   try {
-    // Get all public channels and channels where user is a member
-    const channels = await db
+    // Only channels in the target workspace
+    // Public or user is a member
+    const rows = await db
       .select()
       .from(channelsTable)
       .leftJoin(
@@ -78,16 +81,20 @@ export async function getUserChannelsAction(
         )
       )
       .where(
-        or(
-          eq(channelsTable.type, "public"),
-          eq(channelMembersTable.userId, userId)
+        and(
+          eq(channelsTable.workspaceId, workspaceId),
+          or(
+            eq(channelsTable.type, "public"),
+            eq(channelMembersTable.userId, userId)
+          )
         )
       )
 
+    const data = rows.map(r => r.channels)
     return {
       isSuccess: true,
       message: "Channels retrieved successfully",
-      data: channels.map(row => row.channels)
+      data
     }
   } catch (error) {
     console.error("Error getting user channels:", error)

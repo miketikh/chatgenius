@@ -1,28 +1,34 @@
 "use server"
 
-import { getChannelAction } from "@/actions/db/channels-actions"
 import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
-import { MessageInput } from "../../_components/message-input"
-import { MessageList } from "../../_components/message-list"
+import { getChannelAction } from "@/actions/db/channels-actions"
+import { MessageList } from "@/app/chat/_components/message-list"
+import { MessageInput } from "@/app/chat/_components/message-input"
 
 interface ChannelPageProps {
-  params: Promise<{
+  params: {
+    workspaceId: string
     channelId: string
-  }>
+  }
 }
 
 export default async function ChannelPage({ params }: ChannelPageProps) {
   const { userId } = await auth()
-  const { channelId } = await params
-
   if (!userId) {
     redirect("/")
   }
 
+  const { workspaceId, channelId } = params
+
   const channelRes = await getChannelAction(channelId)
   if (!channelRes.isSuccess) {
-    redirect("/chat")
+    redirect(`/workspace/${workspaceId}`)
+  }
+
+  // Make sure channel's workspaceId matches
+  if (channelRes.data.workspaceId !== workspaceId) {
+    redirect(`/workspace/${workspaceId}`)
   }
 
   return (

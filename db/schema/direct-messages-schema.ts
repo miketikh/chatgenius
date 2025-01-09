@@ -7,9 +7,14 @@ import {
   uuid
 } from "drizzle-orm/pg-core"
 import { usersTable } from "./users-schema"
+import { workspacesTable } from "./workspaces-schema" // <-- import for reference
 
 export const directChatsTable = pgTable("direct_chats", {
   id: uuid("id").defaultRandom().primaryKey(),
+  // NEW FIELD: workspaceId
+  workspaceId: text("workspace_id")
+    .references(() => workspacesTable.id, { onDelete: "cascade" })
+    .notNull(),
   user1Id: text("user1_id")
     .references(() => usersTable.id)
     .notNull(),

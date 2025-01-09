@@ -1,45 +1,45 @@
 "use server"
 
-import { getUserAction } from "@/actions/db/users-actions"
+import { auth } from "@clerk/nextjs/server"
+import { redirect } from "next/navigation"
 import { db } from "@/db/db"
 import { directChatsTable } from "@/db/schema"
-import { auth } from "@clerk/nextjs/server"
-import { eq } from "drizzle-orm"
-import { redirect } from "next/navigation"
-import { MessageInput } from "../../_components/message-input"
-import { MessageList } from "../../_components/message-list"
+import { eq, and } from "drizzle-orm"
+import { getUserAction } from "@/actions/db/users-actions"
+import { MessageList } from "@/app/chat/_components/message-list"
+import { MessageInput } from "@/app/chat/_components/message-input"
 
 interface DirectMessagePageProps {
-  params: Promise<{
+  params: {
+    workspaceId: string
     chatId: string
-  }>
+  }
 }
 
 export default async function DirectMessagePage({
   params
 }: DirectMessagePageProps) {
   const { userId } = await auth()
-  const { chatId } = await params
+  if (!userId) redirect("/")
 
-  if (!userId) {
-    redirect("/")
-  }
+  const { workspaceId, chatId } = params
 
-  // Get the chat
+  // Make sure DM belongs to this workspace
   const chat = await db.query.directChats.findFirst({
-    where: eq(directChatsTable.id, chatId)
+    where: and(
+      eq(directChatsTable.id, chatId),
+      eq(directChatsTable.workspaceId, workspaceId)
+    )
   })
 
   if (!chat) {
-    redirect("/chat")
+    redirect(`/workspace/${workspaceId}`)
   }
 
-  // Get the other user's info
   const otherUserId = chat.user1Id === userId ? chat.user2Id : chat.user1Id
   const otherUserRes = await getUserAction(otherUserId)
-
   if (!otherUserRes.isSuccess) {
-    redirect("/chat")
+    redirect(`/workspace/${workspaceId}`)
   }
 
   return (
@@ -61,7 +61,6 @@ export default async function DirectMessagePage({
       </div>
 
       <MessageList type="direct" chatId={chatId} userId={userId} />
-
       <MessageInput type="direct" chatId={chatId} userId={userId} />
     </div>
   )

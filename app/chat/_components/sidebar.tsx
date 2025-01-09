@@ -38,9 +38,10 @@ import { useCallback, useEffect, useState } from "react"
 
 interface SidebarProps {
   userId: string
+  workspaceId: string
 }
 
-export function Sidebar({ userId }: SidebarProps) {
+export function Sidebar({ userId, workspaceId }: SidebarProps) {
   const router = useRouter()
   const params = useParams()
   const [channels, setChannels] = useState<SelectChannel[]>([])
@@ -60,70 +61,61 @@ export function Sidebar({ userId }: SidebarProps) {
   )
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
-  const handleChannelInsert = useCallback((newChannel: SelectChannel) => {
-    setChannels(prev => [...prev, newChannel])
-  }, [])
+  const workspaceParam = params?.workspaceId
+  const channelParam = params?.channelId
+  const chatParam = params?.chatId
 
-  const handleChannelUpdate = useCallback((updatedChannel: SelectChannel) => {
-    setChannels(prev =>
-      prev.map(ch => (ch.id === updatedChannel.id ? updatedChannel : ch))
-    )
-  }, [])
-
-  const handleChannelDelete = useCallback((deletedChannel: SelectChannel) => {
-    setChannels(prev => prev.filter(ch => ch.id !== deletedChannel.id))
-  }, [])
-
-  const handleChatInsert = useCallback((newChat: SelectDirectChat) => {
-    setDirectChats(prev => [...prev, newChat])
-  }, [])
-
-  const handleChatUpdate = useCallback((updatedChat: SelectDirectChat) => {
-    setDirectChats(prev =>
-      prev.map(chat => (chat.id === updatedChat.id ? updatedChat : chat))
-    )
-  }, [])
-
-  const handleChatDelete = useCallback((deletedChat: SelectDirectChat) => {
-    setDirectChats(prev => prev.filter(chat => chat.id !== deletedChat.id))
-  }, [])
-
+  // Realtime hooks, but filter by workspace if desired
   useRealtimeTable<SelectChannel>({
     table: "channels",
-    // filter: `type=eq.public,or=(creator_id.eq.${userId})`,
-    filter: `type=eq.public`,
-    onInsert: handleChannelInsert,
-    onUpdate: handleChannelUpdate,
-    onDelete: handleChannelDelete
+    filter: `workspace_id=eq.${workspaceId}`, // only subscribe to channels in this workspace
+    onInsert: useCallback(newChannel => {
+      setChannels(prev => [...prev, newChannel])
+    }, []),
+    onUpdate: useCallback(updatedChannel => {
+      setChannels(prev =>
+        prev.map(ch => (ch.id === updatedChannel.id ? updatedChannel : ch))
+      )
+    }, []),
+    onDelete: useCallback(deletedChannel => {
+      setChannels(prev => prev.filter(ch => ch.id !== deletedChannel.id))
+    }, [])
   })
 
   useRealtimeTable<SelectDirectChat>({
     table: "direct_chats",
-    // filter: `user1_id=${userId} OR user2_id=${userId}`,
-    // TODO: no way to subscribe to multiple filters for realtime, need to add client-side filtering or multiple channels
-    filter: `user1_id=eq.${userId}`,
-    onInsert: handleChatInsert,
-    onUpdate: handleChatUpdate,
-    onDelete: handleChatDelete
+    filter: `workspace_id=eq.${workspaceId}`,
+    onInsert: useCallback(newChat => {
+      setDirectChats(prev => [...prev, newChat])
+    }, []),
+    onUpdate: useCallback(updatedChat => {
+      setDirectChats(prev =>
+        prev.map(ch => (ch.id === updatedChat.id ? updatedChat : ch))
+      )
+    }, []),
+    onDelete: useCallback(deletedChat => {
+      setDirectChats(prev => prev.filter(ch => ch.id !== deletedChat.id))
+    }, [])
   })
 
   useEffect(() => {
     loadChannels()
     loadDirectChats()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId])
 
   async function loadChannels() {
-    if (!userId) return
-    const res = await getUserChannelsAction(userId)
-    if (res?.isSuccess) {
+    if (!userId || !workspaceId) return
+    const res = await getUserChannelsAction(userId, workspaceId)
+    if (res.isSuccess) {
       setChannels(res.data)
     }
   }
 
   async function loadDirectChats() {
-    if (!userId) return
-    const res = await getUserDirectChatsAction(userId)
-    if (res?.isSuccess) {
+    if (!userId || !workspaceId) return
+    const res = await getUserDirectChatsAction(userId, workspaceId)
+    if (res.isSuccess) {
       setDirectChats(res.data)
       const userPromises = res.data.map(async chat => {
         const otherUserId =
@@ -146,19 +138,19 @@ export function Sidebar({ userId }: SidebarProps) {
   async function handleCreateChannel(e: React.FormEvent) {
     e.preventDefault()
     if (!newChannelName.trim()) return
-
     const res = await createChannelAction(
       {
         name: newChannelName.trim(),
         type: newChannelType,
-        creatorId: userId
+        creatorId: userId,
+        workspaceId
       },
       [userId]
     )
     if (res.isSuccess) {
       setNewChannelName("")
       setIsCreatingChannel(false)
-      router.push(`/chat/channel/${res.data.id}`)
+      router.push(`/workspace/${workspaceId}/channel/${res.data.id}`)
     }
   }
 
@@ -178,12 +170,16 @@ export function Sidebar({ userId }: SidebarProps) {
   }
 
   async function handleCreateDirectMessage(selectedUserId: string) {
-    const res = await createDirectChatAction(userId, selectedUserId)
+    const res = await createDirectChatAction(
+      userId,
+      selectedUserId,
+      workspaceId
+    )
     if (res.isSuccess) {
       setSearchQuery("")
       setSearchResults([])
       setIsCreatingDirectMessage(false)
-      router.push(`/chat/dm/${res.data.id}`)
+      router.push(`/workspace/${workspaceId}/dm/${res.data.id}`)
     }
   }
 
@@ -191,8 +187,8 @@ export function Sidebar({ userId }: SidebarProps) {
     if (!channelToDelete) return
     const res = await deleteChannelAction(channelToDelete.id)
     if (res.isSuccess) {
-      if (params?.channelId === channelToDelete.id) {
-        router.push("/chat")
+      if (channelParam === channelToDelete.id) {
+        router.push(`/workspace/${workspaceId}`)
       }
       setChannels(prev => prev.filter(ch => ch.id !== channelToDelete.id))
       setChannelToDelete(null)
@@ -241,8 +237,8 @@ export function Sidebar({ userId }: SidebarProps) {
                     <Label htmlFor="type">Channel Type</Label>
                     <Select
                       value={newChannelType}
-                      onValueChange={(value: "public" | "private") =>
-                        setNewChannelType(value)
+                      onValueChange={(val: "public" | "private") =>
+                        setNewChannelType(val)
                       }
                     >
                       <SelectTrigger>
@@ -267,9 +263,13 @@ export function Sidebar({ userId }: SidebarProps) {
                   variant="ghost"
                   className={cn(
                     "w-full justify-start pr-10",
-                    params?.channelId === channel.id && "bg-muted"
+                    channelParam === channel.id && "bg-muted"
                   )}
-                  onClick={() => router.push(`/chat/channel/${channel.id}`)}
+                  onClick={() =>
+                    router.push(
+                      `/workspace/${workspaceId}/channel/${channel.id}`
+                    )
+                  }
                 >
                   <Hash className="mr-2 size-4" />
                   {channel.name}
@@ -330,21 +330,21 @@ export function Sidebar({ userId }: SidebarProps) {
                           No users found
                         </div>
                       )}
-                    {searchResults.map(user => (
+                    {searchResults.map(u => (
                       <Button
-                        key={user.id}
+                        key={u.id}
                         variant="ghost"
                         className="w-full justify-start"
-                        onClick={() => handleCreateDirectMessage(user.id)}
+                        onClick={() => handleCreateDirectMessage(u.id)}
                       >
                         <div className="flex items-center">
                           <div className="bg-primary/10 size-8 rounded-full" />
                           <div className="ml-2">
                             <div className="text-sm font-semibold">
-                              {user.fullName}
+                              {u.fullName}
                             </div>
                             <div className="text-muted-foreground text-xs">
-                              @{user.username}
+                              @{u.username}
                             </div>
                           </div>
                         </div>
@@ -367,9 +367,11 @@ export function Sidebar({ userId }: SidebarProps) {
                   variant="ghost"
                   className={cn(
                     "w-full justify-start",
-                    params?.chatId === chat.id && "bg-muted"
+                    chatParam === chat.id && "bg-muted"
                   )}
-                  onClick={() => router.push(`/chat/dm/${chat.id}`)}
+                  onClick={() =>
+                    router.push(`/workspace/${workspaceId}/dm/${chat.id}`)
+                  }
                 >
                   <MessageSquare className="mr-2 size-4" />
                   <div className="flex flex-col items-start">
