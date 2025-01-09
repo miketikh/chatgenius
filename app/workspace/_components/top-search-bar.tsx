@@ -3,6 +3,7 @@
 import { searchMessagesAction } from "@/actions/search-actions"
 import { Input } from "@/components/ui/input"
 import { ThemeSwitcher } from "@/components/utilities/theme-switcher"
+import { format } from "date-fns"
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,37 +12,42 @@ import {
   Search
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 
 interface TopSearchBarProps {
   userId: string
   workspaceId?: string
 }
 
-/**
- * Enhanced TopSearchBar that:
- * - Extracts the channelId or dmId from the current URL (if any).
- * - Provides real-time "channel-only" and "workspace-wide" message results in a dropdown.
- * - On Enter, navigates to /workspace/[workspaceId]/search?query=&lt;...&gt; (workspace-wide).
- */
+interface SearchResult {
+  id: string
+  content: string
+  createdAt: string
+  username?: string
+  senderUsername?: string
+  channelId?: string
+  channelName?: string
+  chatId?: string
+}
+
 export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchRef = useRef<HTMLDivElement>(null)
 
-  // We'll parse channel/dm from the URL
-  // e.g. /workspace/&lt;ws&gt;/channel/&lt;channelId&gt;
-  // e.g. /workspace/&lt;ws&gt;/dm/&lt;chatId&gt;
   let currentChannelId: string | null = null
+  let currentChannelName: string | null = null
   let currentChatId: string | null = null
 
   if (pathname?.includes("/channel/")) {
-    currentChannelId = pathname.split("/channel/")[1]?.split("/")[0] || null
+    const parts = pathname.split("/channel/")[1]?.split("/")
+    currentChannelId = parts?.[0] || null
+    // Extract channel name from URL if available
+    currentChannelName = decodeURIComponent(parts?.[1] || "") || null
   } else if (pathname?.includes("/dm/")) {
     currentChatId = pathname.split("/dm/")[1]?.split("/")[0] || null
   }
 
-  // Make sure we have a workspaceId if not passed in props
-  // We parse from the URL /workspace/&lt;id&gt;/...
   let effectiveWorkspaceId = workspaceId
   if (!effectiveWorkspaceId && pathname?.includes("/workspace/")) {
     effectiveWorkspaceId = pathname.split("/workspace/")[1]?.split("/")[0] || ""
@@ -49,15 +55,14 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
 
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<{
-    channelMessages: any[]
-    directMessages: any[]
-    channelOnlyMessages: any[]
+    channelMessages: SearchResult[]
+    directMessages: SearchResult[]
+    channelOnlyMessages: SearchResult[]
   }>({ channelMessages: [], directMessages: [], channelOnlyMessages: [] })
 
   const [isPending, startTransition] = useTransition()
   const [showDropdown, setShowDropdown] = useState(false)
 
-  // If the user changes channels or workspace, reset local states
   useEffect(() => {
     setResults({
       channelMessages: [],
@@ -68,67 +73,162 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
     setQuery("")
   }, [pathname])
 
-  /**
-   * Search within workspace + optionally limit to channel if present
-   * We'll call the same action with different filters to simulate Slack-like suggestions.
-   */
+  // Add click outside handler
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
+        setShowDropdown(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  function transformSearchResult(
+    msg: any,
+    type: "channel" | "direct"
+  ): SearchResult {
+    return {
+      id: msg.id,
+      content: msg.content,
+      createdAt: msg.createdAt,
+      username: type === "channel" ? msg.username : msg.senderUsername,
+      channelId: msg.channelId,
+      channelName: msg.channelName,
+      chatId: msg.chatId
+    }
+  }
+
   async function handleSearch(partialQuery: string) {
-    if (!partialQuery.trim() || !effectiveWorkspaceId) {
+    // Only search if query has 2 or more characters
+    if (
+      !partialQuery.trim() ||
+      partialQuery.length < 2 ||
+      !effectiveWorkspaceId
+    ) {
       setResults({
         channelMessages: [],
         directMessages: [],
         channelOnlyMessages: []
       })
+      setShowDropdown(false)
       return
     }
 
     startTransition(async () => {
-      // 1) Search entire workspace
-      const res = await searchMessagesAction(partialQuery, userId, {
-        workspaceId: effectiveWorkspaceId
-      })
-      // 2) Search only in the current channel if channelId is present
-      let channelRes: any = { isSuccess: false, data: { channelMessages: [] } }
-      if (currentChannelId) {
-        channelRes = await searchMessagesAction(partialQuery, userId, {
+      // If in a DM, only search DMs
+      if (currentChatId) {
+        const res = await searchMessagesAction(partialQuery, userId, {
           workspaceId: effectiveWorkspaceId,
-          channelId: currentChannelId
+          type: "direct",
+          chatId: currentChatId
         })
+        if (res.isSuccess) {
+          setResults({
+            channelMessages: [],
+            directMessages: (res.data.directMessages || []).map(msg =>
+              transformSearchResult(msg, "direct")
+            ),
+            channelOnlyMessages: []
+          })
+        }
       }
+      // If in a channel, search current channel and all DMs
+      else if (currentChannelId) {
+        const [channelRes, dmRes] = await Promise.all([
+          searchMessagesAction(partialQuery, userId, {
+            workspaceId: effectiveWorkspaceId,
+            type: "channel",
+            channelId: currentChannelId
+          }),
+          searchMessagesAction(partialQuery, userId, {
+            workspaceId: effectiveWorkspaceId,
+            type: "direct"
+          })
+        ])
 
-      if (res.isSuccess) {
         setResults({
-          channelMessages: res.data.channelMessages || [],
-          directMessages: res.data.directMessages || [],
+          channelMessages: [],
+          directMessages: dmRes.isSuccess
+            ? (dmRes.data.directMessages || []).map(msg =>
+                transformSearchResult(msg, "direct")
+              )
+            : [],
           channelOnlyMessages: channelRes.isSuccess
-            ? channelRes.data.channelMessages || []
+            ? (channelRes.data.channelMessages || []).map(msg =>
+                transformSearchResult(msg, "channel")
+              )
             : []
         })
+      }
+      // If not in a channel or DM, only search DMs
+      else {
+        const res = await searchMessagesAction(partialQuery, userId, {
+          workspaceId: effectiveWorkspaceId,
+          type: "direct"
+        })
+        if (res.isSuccess) {
+          setResults({
+            channelMessages: [],
+            directMessages: (res.data.directMessages || []).map(msg =>
+              transformSearchResult(msg, "direct")
+            ),
+            channelOnlyMessages: []
+          })
+        }
       }
       setShowDropdown(true)
     })
   }
 
-  // Called when user types in the search box
   function onChangeQuery(newVal: string) {
     setQuery(newVal)
-    // We do a "live" search as they type
     handleSearch(newVal)
   }
 
-  // Called when user presses Enter
   function onEnterSearch() {
     if (!effectiveWorkspaceId || !query.trim()) return
-    // We'll navigate to a new route: /workspace/&lt;workspaceId&gt;/search?query=&lt;query&gt;
     router.push(
       `/workspace/${effectiveWorkspaceId}/search?query=${encodeURIComponent(query)}`
     )
     setShowDropdown(false)
   }
 
+  function formatMessagePreview(message: SearchResult) {
+    const date = new Date(message.createdAt)
+    const formattedDate = format(date, "MMM d")
+    const formattedTime = format(date, "h:mm a")
+
+    return (
+      <div className="flex flex-col gap-1 rounded-md p-2 hover:bg-white/10">
+        <div className="flex items-center gap-2 text-xs text-white/60">
+          <span className="font-medium text-white">
+            {message.username || message.senderUsername}
+          </span>
+          <span>{formattedDate}</span>
+          <span>{formattedTime}</span>
+          {message.channelName && (
+            <>
+              <span>in</span>
+              <span className="font-medium text-white">
+                #{message.channelName}
+              </span>
+            </>
+          )}
+        </div>
+        <p className="text-sm text-white">{message.content}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex w-full items-center gap-4 text-white">
-      {/* History Navigation */}
       <div className="flex items-center gap-2">
         <button
           className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-white/20"
@@ -150,14 +250,13 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative flex max-w-[600px] flex-1">
+      <div ref={searchRef} className="relative flex max-w-[600px] flex-1">
         <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
           <Search className="size-4 text-white/60" />
         </div>
         <Input
           className="border-white/20 bg-white/10 pl-9 text-white placeholder:text-white/60 focus-visible:ring-white/30"
-          placeholder="Search messages..."
+          placeholder="Search messages (2+ characters)..."
           value={query}
           onChange={e => onChangeQuery(e.target.value)}
           onKeyDown={e => {
@@ -169,27 +268,18 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
         />
 
         {showDropdown &&
-          (results.channelMessages.length > 0 ||
-            results.directMessages.length > 0 ||
-            results.channelOnlyMessages.length > 0) && (
-            <div className="absolute top-full z-50 mt-1 max-h-[500px] w-full overflow-auto rounded-md border border-white/20 bg-black/95 p-2 shadow-lg">
-              <h4 className="mb-2 font-bold text-white">Search Suggestions</h4>
-
-              {/* If there's a channel, show 'channel only' results */}
-              {currentChannelId && (
-                <div className="mb-4 space-y-1">
-                  <div className="text-sm font-semibold text-white/70">
-                    In this channel
+          (results.channelOnlyMessages.length > 0 ||
+            results.directMessages.length > 0) && (
+            <div className="absolute top-full z-50 mt-1 max-h-[500px] w-full overflow-auto rounded-md border border-white/20 bg-black/95 p-4 shadow-lg">
+              {currentChannelId && results.channelOnlyMessages.length > 0 && (
+                <div className="mb-6 space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wider text-white/60">
+                    Results from #{currentChannelName}
                   </div>
-                  {results.channelOnlyMessages.length === 0 && (
-                    <div className="p-2 text-sm text-white/60">
-                      No channel-specific matches yet
-                    </div>
-                  )}
-                  {results.channelOnlyMessages.slice(0, 5).map(msg => (
+                  {results.channelOnlyMessages.map(msg => (
                     <div
                       key={msg.id}
-                      className="cursor-pointer rounded-md p-2 text-sm text-white hover:bg-white/10"
+                      className="cursor-pointer"
                       onClick={() => {
                         router.push(
                           `/workspace/${effectiveWorkspaceId}/channel/${currentChannelId}`
@@ -197,62 +287,39 @@ export function TopSearchBar({ userId, workspaceId }: TopSearchBarProps) {
                         setShowDropdown(false)
                       }}
                     >
-                      {msg.content}
+                      {formatMessagePreview(msg)}
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Full workspace results */}
-              <div className="mb-4 space-y-1">
-                <div className="text-sm font-semibold text-white/70">
-                  All Channels
-                </div>
-                {results.channelMessages.slice(0, 5).map(msg => (
-                  <div
-                    key={msg.id}
-                    className="cursor-pointer rounded-md p-2 text-sm text-white hover:bg-white/10"
-                    onClick={() => {
-                      if (msg.channelId) {
-                        router.push(
-                          `/workspace/${effectiveWorkspaceId}/channel/${msg.channelId}`
-                        )
-                      }
-                      setShowDropdown(false)
-                    }}
-                  >
-                    {msg.content}
+              {results.directMessages.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wider text-white/60">
+                    Direct Messages
                   </div>
-                ))}
-              </div>
-
-              {/* DM results */}
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-white/70">
-                  Direct Messages
+                  {results.directMessages.map(msg => (
+                    <div
+                      key={msg.id}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (msg.chatId) {
+                          router.push(
+                            `/workspace/${effectiveWorkspaceId}/dm/${msg.chatId}`
+                          )
+                        }
+                        setShowDropdown(false)
+                      }}
+                    >
+                      {formatMessagePreview(msg)}
+                    </div>
+                  ))}
                 </div>
-                {results.directMessages.slice(0, 5).map(msg => (
-                  <div
-                    key={msg.id}
-                    className="cursor-pointer rounded-md p-2 text-sm text-white hover:bg-white/10"
-                    onClick={() => {
-                      if (msg.chatId) {
-                        router.push(
-                          `/workspace/${effectiveWorkspaceId}/dm/${msg.chatId}`
-                        )
-                      }
-                      setShowDropdown(false)
-                    }}
-                  >
-                    {msg.content}
-                  </div>
-                ))}
-              </div>
+              )}
             </div>
           )}
       </div>
 
-      {/* Logo and Theme Switcher */}
       <div className="ml-auto flex items-center gap-4">
         <div className="flex items-center gap-2">
           <MessageSquare className="size-5 text-white" />
