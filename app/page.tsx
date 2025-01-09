@@ -13,21 +13,12 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { getUserWorkspacesAction } from "@/actions/db/workspaces-actions"
 
 export default async function HomePage() {
   const { userId } = await auth()
 
   if (userId) {
-    // Check if user has any workspace
-    const workspacesRes = await getUserWorkspacesAction(userId)
-    if (workspacesRes.isSuccess && workspacesRes.data.length > 0) {
-      // Redirect them to the "workspace" index page
-      redirect("/workspace")
-    } else {
-      // No workspace => same, redirect to /workspace so they can create or join
-      redirect("/workspace")
-    }
+    redirect("/workspace")
   }
 
   // If not logged in, we show marketing page

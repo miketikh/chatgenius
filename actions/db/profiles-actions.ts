@@ -8,9 +8,9 @@ Contains server actions related to profiles in the DB.
 
 import { db } from "@/db/db"
 import {
-    InsertProfile,
-    profilesTable,
-    SelectProfile
+  InsertProfile,
+  profilesTable,
+  SelectProfile
 } from "@/db/schema/profiles-schema"
 import { ActionState } from "@/types"
 import { eq } from "drizzle-orm"
