@@ -7,10 +7,10 @@ import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 
 interface ChannelPageProps {
-  params: {
+  params: Promise<{
     workspaceId: string
     channelId: string
-  }
+  }>
 }
 
 export default async function ChannelPage({ params }: ChannelPageProps) {
@@ -19,7 +19,7 @@ export default async function ChannelPage({ params }: ChannelPageProps) {
     redirect("/")
   }
 
-  const { workspaceId, channelId } = params
+  const { workspaceId, channelId } = await Promise.resolve(params)
 
   const channelRes = await getChannelAction(channelId)
   if (!channelRes.isSuccess) {

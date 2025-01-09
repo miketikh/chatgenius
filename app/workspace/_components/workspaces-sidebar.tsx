@@ -84,15 +84,6 @@ export function WorkspacesSidebar({
     }
   }, [currentWorkspaceId])
 
-  // Debug logs
-  useEffect(() => {
-    console.log("WorkspacesSidebar mounted")
-    console.log("userId:", userId)
-    console.log("userWorkspaces:", userWorkspaces)
-    console.log("selectedWorkspace:", selectedWorkspace)
-    console.log("currentWorkspaceId:", currentWorkspaceId)
-  }, [userId, userWorkspaces, selectedWorkspace, currentWorkspaceId])
-
   // Load searchable workspaces when entering search view
   useEffect(() => {
     if (currentView === "search") {
@@ -109,7 +100,6 @@ export function WorkspacesSidebar({
     setIsSearchLoading(false)
   }
 
-  console.log("searchableWorkspaces", searchableWorkspaces)
   // Filter workspaces based on search query
   const filteredWorkspaces = useMemo(() => {
     if (!searchQuery.trim()) return searchableWorkspaces

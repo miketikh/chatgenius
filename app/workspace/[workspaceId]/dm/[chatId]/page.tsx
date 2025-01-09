@@ -10,10 +10,10 @@ import { and, eq } from "drizzle-orm"
 import { redirect } from "next/navigation"
 
 interface DirectMessagePageProps {
-  params: {
+  params: Promise<{
     workspaceId: string
     chatId: string
-  }
+  }>
 }
 
 export default async function DirectMessagePage({
@@ -22,7 +22,7 @@ export default async function DirectMessagePage({
   const { userId } = await auth()
   if (!userId) redirect("/")
 
-  const { workspaceId, chatId } = params
+  const { workspaceId, chatId } = await Promise.resolve(params)
 
   // Make sure DM belongs to this workspace
   const chat = await db.query.directChats.findFirst({

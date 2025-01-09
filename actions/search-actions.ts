@@ -2,51 +2,110 @@
 
 import { db } from "@/db/db"
 import {
-    SelectDirectMessage,
-    SelectMessage,
-    channelMembersTable,
-    directChatsTable,
-    directMessagesTable,
-    messagesTable
+  SelectDirectMessage,
+  SelectMessage,
+  channelMembersTable,
+  channelsTable,
+  directChatsTable,
+  directMessagesTable,
+  messagesTable
 } from "@/db/schema"
 import { ActionState } from "@/types"
-import { and, eq, ilike, or } from "drizzle-orm"
+import { and, eq, ilike, inArray, or } from "drizzle-orm"
 
 interface SearchResult {
   channelMessages: SelectMessage[]
   directMessages: SelectDirectMessage[]
 }
 
+interface SearchOptions {
+  workspaceId?: string
+  channelId?: string
+}
+
 export async function searchMessagesAction(
   query: string,
-  userId: string
+  userId: string,
+  options: SearchOptions = {}
 ): Promise<ActionState<SearchResult>> {
   try {
-    // Search in channel messages
-    const channelMessages = await db.query.messages.findMany({
-      where: and(
-        ilike(messagesTable.content, `%${query}%`),
-        eq(channelMembersTable.userId, userId)
-      )
-    })
+    if (!query?.trim()) {
+      return {
+        isSuccess: true,
+        message: "Empty query",
+        data: { channelMessages: [], directMessages: [] }
+      }
+    }
 
-    // Search in direct messages
-    const directMessages = await db.query.directMessages.findMany({
-      where: and(
-        ilike(directMessagesTable.content, `%${query}%`),
-        or(
-          eq(directChatsTable.user1Id, userId),
-          eq(directChatsTable.user2Id, userId)
+    // Search in channel messages by joining with channel_members and channels
+    const channelMessages = await db
+      .select()
+      .from(messagesTable)
+      .innerJoin(
+        channelMembersTable,
+        and(
+          eq(channelMembersTable.channelId, messagesTable.channelId),
+          eq(channelMembersTable.userId, userId)
         )
       )
-    })
+      .innerJoin(
+        channelsTable,
+        and(
+          eq(channelsTable.id, messagesTable.channelId),
+          // Only filter by workspace if provided
+          options.workspaceId ? eq(channelsTable.workspaceId, options.workspaceId) : undefined
+        )
+      )
+      .where(
+        and(
+          ilike(messagesTable.content, `%${query}%`),
+          // Only filter by channel if provided
+          options.channelId ? eq(messagesTable.channelId, options.channelId) : undefined
+        )
+      )
+
+    // Get DM results only if we have a workspace ID
+    let directMessages: any[] = []
+    if (options.workspaceId) {
+      // First get all chat IDs for this user in this workspace
+      const userChats = await db
+        .select({ id: directChatsTable.id })
+        .from(directChatsTable)
+        .where(
+          and(
+            eq(directChatsTable.workspaceId, options.workspaceId),
+            or(
+              eq(directChatsTable.user1Id, userId),
+              eq(directChatsTable.user2Id, userId)
+            )
+          )
+        )
+
+      // Then search messages in those chats
+      if (userChats.length > 0) {
+        directMessages = await db
+          .select()
+          .from(directMessagesTable)
+          .where(
+            and(
+              ilike(directMessagesTable.content, `%${query}%`),
+              inArray(
+                directMessagesTable.chatId,
+                userChats.map(c => c.id)
+              )
+            )
+          )
+      }
+    }
 
     return {
       isSuccess: true,
       message: "Search completed successfully",
       data: {
-        channelMessages,
-        directMessages
+        channelMessages: channelMessages.map(row => ({
+          ...row.messages
+        })) as SelectMessage[],
+        directMessages: directMessages as SelectDirectMessage[]
       }
     }
   } catch (error) {

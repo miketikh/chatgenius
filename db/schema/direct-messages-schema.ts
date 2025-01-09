@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm"
 import {
   integer,
   jsonb,
@@ -7,11 +8,10 @@ import {
   uuid
 } from "drizzle-orm/pg-core"
 import { usersTable } from "./users-schema"
-import { workspacesTable } from "./workspaces-schema" // <-- import for reference
+import { workspacesTable } from "./workspaces-schema"
 
 export const directChatsTable = pgTable("direct_chats", {
   id: uuid("id").defaultRandom().primaryKey(),
-  // NEW FIELD: workspaceId
   workspaceId: text("workspace_id")
     .references(() => workspacesTable.id, { onDelete: "cascade" })
     .notNull(),
@@ -50,6 +50,21 @@ export const directMessagesTable = pgTable("direct_messages", {
     .notNull()
     .$onUpdate(() => new Date())
 })
+
+// Add relations configuration
+export const directChatsRelations = relations(directChatsTable, ({ many }) => ({
+  messages: many(directMessagesTable)
+}))
+
+export const directMessagesRelations = relations(
+  directMessagesTable,
+  ({ one }) => ({
+    chat: one(directChatsTable, {
+      fields: [directMessagesTable.chatId],
+      references: [directChatsTable.id]
+    })
+  })
+)
 
 export type InsertDirectChat = typeof directChatsTable.$inferInsert
 export type SelectDirectChat = typeof directChatsTable.$inferSelect
