@@ -1,7 +1,10 @@
 "use server"
 
 import { getUserAction } from "@/actions/db/users-actions"
-import { getWorkspaceAction } from "@/actions/db/workspaces-actions"
+import {
+  getUserWorkspacesAction,
+  getWorkspaceAction
+} from "@/actions/db/workspaces-actions"
 import { Sidebar } from "@/app/workspace/_components/sidebar"
 import { TopSearchBar } from "@/app/workspace/_components/top-search-bar"
 import { WorkspacesSidebar } from "@/app/workspace/_components/workspaces-sidebar"
@@ -21,8 +24,10 @@ export default async function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const { userId } = await auth()
   if (!userId) {
-    redirect("/")
+    redirect("/sign-in")
   }
+
+  const { workspaceId } = await Promise.resolve(params)
 
   // Get the user
   const userRes = await getUserAction(userId)
@@ -30,8 +35,14 @@ export default async function WorkspaceLayout({
     return <div>Error loading user</div>
   }
 
-  // Get the workspace
-  const workspaceRes = await getWorkspaceAction(params.workspaceId)
+  // Get all workspaces for the user
+  const userWorkspacesRes = await getUserWorkspacesAction(userId)
+  if (!userWorkspacesRes.isSuccess) {
+    return <div>Error loading workspaces</div>
+  }
+
+  // Get the current workspace
+  const workspaceRes = await getWorkspaceAction(workspaceId)
   if (!workspaceRes.isSuccess) {
     return <div>Error loading workspace</div>
   }
@@ -42,7 +53,7 @@ export default async function WorkspaceLayout({
       <div className="w-16 bg-blue-900">
         <WorkspacesSidebar
           userId={userId}
-          userWorkspaces={[workspaceRes.data]}
+          userWorkspaces={userWorkspacesRes.data}
           user={userRes.data}
         />
       </div>
@@ -51,13 +62,13 @@ export default async function WorkspaceLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         <div className="flex min-h-12 items-center bg-blue-900 p-2">
-          <TopSearchBar userId={userId} workspaceId={params.workspaceId} />
+          <TopSearchBar userId={userId} workspaceId={workspaceId} />
         </div>
 
         {/* Content area with sidebar and main content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Main sidebar with channels/DMs */}
-          <Sidebar userId={userId} workspaceId={params.workspaceId} />
+          <Sidebar userId={userId} workspaceId={workspaceId} />
 
           {/* Page content */}
           <main className="flex-1 overflow-y-auto p-6">{children}</main>

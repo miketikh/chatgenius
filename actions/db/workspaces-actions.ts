@@ -2,15 +2,14 @@
 
 import { db } from "@/db/db"
 import {
-    InsertWorkspace,
-    InsertWorkspaceMember,
-    SelectWorkspace,
-    SelectWorkspaceMember,
-    workspaceMembersTable,
-    workspacesTable
+  InsertWorkspace,
+  InsertWorkspaceMember,
+  SelectWorkspace,
+  workspaceMembersTable,
+  workspacesTable
 } from "@/db/schema"
 import { ActionState } from "@/types"
-import { and, eq, or } from "drizzle-orm"
+import { and, eq, exists, not } from "drizzle-orm"
 
 export async function createWorkspaceAction(
   workspaceData: InsertWorkspace,
@@ -65,27 +64,26 @@ export async function getUserWorkspacesAction(
   userId: string
 ): Promise<ActionState<SelectWorkspace[]>> {
   try {
-    // A user can see public workspaces or any workspace they are a member of
-    const results = await db
-      .select()
-      .from(workspacesTable)
-      .leftJoin(
-        workspaceMembersTable,
-        eq(workspacesTable.id, workspaceMembersTable.workspaceId)
-      )
-      .where(
-        or(
-          eq(workspacesTable.type, "public"),
-          eq(workspaceMembersTable.userId, userId)
-        )
-      )
+    // Only get workspaces where the user is a member
+    const workspaces = await db.query.workspaces.findMany({
+      where: exists(
+        db
+          .select()
+          .from(workspaceMembersTable)
+          .where(
+            and(
+              eq(workspaceMembersTable.userId, userId),
+              eq(workspaceMembersTable.workspaceId, workspacesTable.id)
+            )
+          )
+      ),
+      orderBy: workspacesTable.name
+    })
 
-    // results is an array of { workspaces, workspace_members } so map properly
-    const data = results.map(r => r.workspaces)
     return {
       isSuccess: true,
       message: "User workspaces retrieved successfully",
-      data
+      data: workspaces
     }
   } catch (error) {
     console.error("Error getting user workspaces:", error)
@@ -96,33 +94,39 @@ export async function getUserWorkspacesAction(
 export async function joinWorkspaceAction(
   workspaceId: string,
   userId: string
-): Promise<ActionState<SelectWorkspaceMember>> {
+) {
   try {
-    // Insert if not already
+    // Insert only if not already present
     const [member] = await db
       .insert(workspaceMembersTable)
       .values({ workspaceId, userId })
-      .onConflictDoNothing()
+      .onConflictDoNothing({
+        // IMPORTANT: specify the same columns used in the unique constraint
+        target: [workspaceMembersTable.workspaceId, workspaceMembersTable.userId]
+      })
       .returning()
 
+    // If `member` is undefined, it means the row already exists or the insert failed.
     if (!member) {
-      // onConflictDoNothing means user might already be a member
+      // Double-check the existing row:
       const existing = await db.query.workspaceMembers.findFirst({
         where: and(
           eq(workspaceMembersTable.workspaceId, workspaceId),
           eq(workspaceMembersTable.userId, userId)
         )
       })
+
       if (!existing) {
         return { isSuccess: false, message: "Failed to join workspace" }
       }
       return {
         isSuccess: true,
-        message: "Joined workspace successfully",
+        message: "Already a member of workspace",
         data: existing
       }
     }
 
+    // Otherwise, the insert succeeded and we have a fresh row
     return {
       isSuccess: true,
       message: "Joined workspace successfully",
@@ -155,10 +159,23 @@ export async function getSearchableWorkspacesAction(
   userId: string
 ): Promise<ActionState<SelectWorkspace[]>> {
   try {
-    const workspaces = await db.query.workspacesTable.findMany({
-      where: or(
+    // Get public workspaces where the user is NOT a member
+    const workspaces = await db.query.workspaces.findMany({
+      where: and(
         eq(workspacesTable.type, "public"),
-        eq(workspacesTable.creatorId, userId)
+        not(
+          exists(
+            db
+              .select()
+              .from(workspaceMembersTable)
+              .where(
+                and(
+                  eq(workspaceMembersTable.userId, userId),
+                  eq(workspaceMembersTable.workspaceId, workspacesTable.id)
+                )
+              )
+          )
+        )
       ),
       orderBy: workspacesTable.name
     })

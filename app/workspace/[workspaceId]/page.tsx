@@ -10,7 +10,8 @@ interface WorkspacePageProps {
 }
 
 export default async function WorkspacePage({ params }: WorkspacePageProps) {
-  const workspaceRes = await getWorkspaceAction(params.workspaceId)
+  const { workspaceId } = await Promise.resolve(params)
+  const workspaceRes = await getWorkspaceAction(workspaceId)
   if (!workspaceRes.isSuccess) {
     return <div>Error loading workspace</div>
   }

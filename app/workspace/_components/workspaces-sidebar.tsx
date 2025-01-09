@@ -42,7 +42,7 @@ import {
   Settings
 } from "lucide-react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
 interface WorkspacesSidebarProps {
@@ -59,18 +59,39 @@ export function WorkspacesSidebar({
   user
 }: WorkspacesSidebarProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const clerk = useClerk()
   const [showDialog, setShowDialog] = useState(false)
   const [workspaceName, setWorkspaceName] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+
+  // Get current workspace ID from the URL
+  const currentWorkspaceId = pathname.split("/workspace/")[1]?.split("/")[0]
+
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(
-    null
+    currentWorkspaceId || userWorkspaces[0]?.id || null
   )
   const [currentView, setCurrentView] = useState<WorkspaceView>("list")
   const [searchableWorkspaces, setSearchableWorkspaces] = useState<
     SelectWorkspace[]
   >([])
   const [isSearchLoading, setIsSearchLoading] = useState(false)
+
+  // Update selectedWorkspace when URL changes
+  useEffect(() => {
+    if (currentWorkspaceId) {
+      setSelectedWorkspace(currentWorkspaceId)
+    }
+  }, [currentWorkspaceId])
+
+  // Debug logs
+  useEffect(() => {
+    console.log("WorkspacesSidebar mounted")
+    console.log("userId:", userId)
+    console.log("userWorkspaces:", userWorkspaces)
+    console.log("selectedWorkspace:", selectedWorkspace)
+    console.log("currentWorkspaceId:", currentWorkspaceId)
+  }, [userId, userWorkspaces, selectedWorkspace, currentWorkspaceId])
 
   // Load searchable workspaces when entering search view
   useEffect(() => {
@@ -137,7 +158,10 @@ export function WorkspacesSidebar({
   async function handleJoinWorkspace(workspaceId: string) {
     const res = await joinWorkspaceAction(workspaceId, userId)
     if (res.isSuccess) {
+      setSelectedWorkspace(workspaceId)
+      setCurrentView("list")
       router.refresh()
+      router.push(`/workspace/${workspaceId}`)
     }
   }
 
@@ -151,28 +175,40 @@ export function WorkspacesSidebar({
           </p>
         </div>
         <div className="max-h-96 overflow-auto">
-          {userWorkspaces.map(ws => (
-            <button
-              key={ws.id}
-              className={cn(
-                "hover:bg-accent flex w-full items-center gap-3 px-4 py-2 transition-colors",
-                selectedWorkspace === ws.id && "bg-accent"
-              )}
-              onClick={() => {
-                setSelectedWorkspace(ws.id)
-                router.push(`/workspace/${ws.id}`)
-              }}
-            >
-              <div className="bg-primary flex size-8 items-center justify-center rounded">
-                <span className="text-primary-foreground text-sm font-semibold">
-                  {ws.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex flex-col items-start">
-                <span className="font-medium">{ws.name}</span>
-              </div>
-            </button>
-          ))}
+          {userWorkspaces.map(ws => {
+            const isCurrent = ws.id === currentWorkspaceId
+            return (
+              <button
+                key={ws.id}
+                className={cn(
+                  "hover:bg-accent flex w-full items-center gap-3 px-4 py-2 transition-colors",
+                  isCurrent && "bg-accent/50 cursor-default",
+                  !isCurrent && "hover:bg-accent"
+                )}
+                onClick={() => {
+                  if (!isCurrent) {
+                    setSelectedWorkspace(ws.id)
+                    router.push(`/workspace/${ws.id}`)
+                  }
+                }}
+                disabled={isCurrent}
+              >
+                <div className="bg-primary flex size-8 items-center justify-center rounded">
+                  <span className="text-primary-foreground text-sm font-semibold">
+                    {ws.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex flex-1 items-center justify-between">
+                  <span className="font-medium">{ws.name}</span>
+                  {isCurrent && (
+                    <span className="text-muted-foreground text-xs">
+                      (current)
+                    </span>
+                  )}
+                </div>
+              </button>
+            )
+          })}
         </div>
         <div className="border-t p-2">
           <Button
