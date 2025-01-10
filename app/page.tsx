@@ -78,9 +78,9 @@ export default async function HomePage() {
               </SignInButton>
             </div>
 
-            <div className="mx-auto max-w-5xl overflow-hidden rounded-lg border-2 border-purple-100 shadow-2xl">
+            <div className="mx-auto h-[660px] max-w-5xl overflow-hidden rounded-lg border-2 border-purple-100 shadow-2xl">
               <img
-                src="/screenshots/homepage_screenshot.png"
+                src="/screenshots/screenshot.png"
                 alt="ChatGenius Interface Screenshot"
                 className="h-auto w-full"
               />
