@@ -1,9 +1,10 @@
 "use client"
 
+import { getSignedUrlAction } from "@/actions/db/attachments-actions"
 import { SelectAttachment } from "@/db/schema"
 import { FileIcon, ImageIcon, XIcon } from "lucide-react"
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "./button"
 
 interface AttachmentPreviewProps {
@@ -18,7 +19,29 @@ export function AttachmentPreview({
   showDelete = false
 }: AttachmentPreviewProps) {
   const [isImageError, setIsImageError] = useState(false)
+  const [signedUrl, setSignedUrl] = useState<string>("")
   const isImage = attachment.type.startsWith("image/") && !isImageError
+
+  useEffect(() => {
+    async function getUrl() {
+      try {
+        const res = await getSignedUrlAction(attachment.name)
+        if (res.isSuccess) {
+          setSignedUrl(res.data)
+        } else {
+          throw new Error(res.message)
+        }
+      } catch (error) {
+        console.error("Error getting signed URL:", error)
+        setIsImageError(true)
+      }
+    }
+    getUrl()
+  }, [attachment.name])
+
+  if (!signedUrl) {
+    return null // Or a loading state
+  }
 
   return (
     <div className="bg-muted group relative inline-block max-w-xs overflow-hidden rounded-md border">
@@ -35,13 +58,13 @@ export function AttachmentPreview({
 
       {isImage ? (
         <a
-          href={attachment.url}
+          href={signedUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="block"
         >
           <Image
-            src={attachment.url}
+            src={signedUrl}
             alt={attachment.name}
             width={300}
             height={200}
@@ -51,7 +74,7 @@ export function AttachmentPreview({
         </a>
       ) : (
         <a
-          href={attachment.url}
+          href={signedUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 p-2"

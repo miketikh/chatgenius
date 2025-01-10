@@ -2,7 +2,7 @@
 
 import { db } from "@/db/db"
 import { SelectAttachment, attachmentsTable } from "@/db/schema"
-import { uploadToS3 } from "@/lib/s3"
+import { getSignedFileUrl, uploadToS3 } from "@/lib/s3"
 import { ActionState } from "@/types"
 import { eq } from "drizzle-orm"
 
@@ -91,5 +91,21 @@ export async function deleteAttachmentAction(
   } catch (error) {
     console.error("Error deleting attachment:", error)
     return { isSuccess: false, message: "Failed to delete attachment" }
+  }
+}
+
+export async function getSignedUrlAction(
+  key: string
+): Promise<ActionState<string>> {
+  try {
+    const url = await getSignedFileUrl(key)
+    return {
+      isSuccess: true,
+      message: "Signed URL generated successfully",
+      data: url
+    }
+  } catch (error) {
+    console.error("Error generating signed URL:", error)
+    return { isSuccess: false, message: "Failed to generate signed URL" }
   }
 } 
