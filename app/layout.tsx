@@ -9,7 +9,15 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
   title: "ChatGenius",
-  description: "A Slack-like chat application"
+  description: "A Slack-like chat application",
+  icons: {
+    icon: [
+      {
+        url: "/favicon.svg",
+        type: "image/svg+xml"
+      }
+    ]
+  }
 }
 
 export default function RootLayout({
