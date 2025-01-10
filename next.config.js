@@ -16,6 +16,18 @@ const nextConfig = {
         hostname: "images.clerk.dev",
         port: "",
         pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "chatgenius-mike.s3.us-east-2.amazonaws.com",
+        port: "",
+        pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "avatar.vercel.sh",
+        port: "",
+        pathname: "/**"
       }
     ]
   },

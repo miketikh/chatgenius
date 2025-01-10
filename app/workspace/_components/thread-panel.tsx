@@ -1,5 +1,6 @@
 "use client"
 
+import { getAttachmentsAction } from "@/actions/db/attachments-actions"
 import {
   addDirectMessageReactionAction,
   createDirectThreadMessageAction,
@@ -12,6 +13,7 @@ import {
   getThreadMessagesAction,
   removeReactionAction
 } from "@/actions/db/messages-actions"
+import { AttachmentPreview } from "@/components/ui/attachment-preview"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -21,7 +23,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
+import {
+  SelectAttachment,
+  SelectDirectMessage,
+  SelectMessage,
+  SelectUser
+} from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { Smile, X } from "lucide-react"
@@ -71,6 +78,9 @@ export function ThreadPanel({
   >([])
   const [newReply, setNewReply] = useState("")
   const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
+  const [attachmentsMap, setAttachmentsMap] = useState<
+    Record<string, SelectAttachment[]>
+  >({})
 
   // We only care about reloading if the parentMessage's ID changes.
   // Make sure the parent doesn't constantly recreate `parentMessage`.
@@ -143,6 +153,7 @@ export function ThreadPanel({
         setReplies(data)
         // Bulk load all user data if missing
         await bulkLoadUsers(data)
+        await bulkLoadAttachments([parentMessage, ...data])
       }
     } else {
       const res = await getDirectThreadMessagesAction(parentId)
@@ -151,6 +162,26 @@ export function ThreadPanel({
         setReplies(data)
         // Bulk load all user data if missing
         await bulkLoadUsers(data)
+        await bulkLoadAttachments([parentMessage, ...data])
+      }
+    }
+  }
+
+  async function bulkLoadAttachments(
+    msgs: (SelectMessage | SelectDirectMessage)[]
+  ) {
+    for (const msg of msgs) {
+      if (!attachmentsMap[msg.id]) {
+        const res = await getAttachmentsAction(
+          type === "channel" ? msg.id : undefined,
+          type === "direct" ? msg.id : undefined
+        )
+        if (res.isSuccess) {
+          setAttachmentsMap(prev => ({
+            ...prev,
+            [msg.id]: res.data
+          }))
+        }
       }
     }
   }
@@ -265,6 +296,27 @@ export function ThreadPanel({
     return message.senderId
   }
 
+  const MessageContent = ({
+    message
+  }: {
+    message: SelectMessage | SelectDirectMessage
+  }) => {
+    const attachments = attachmentsMap[message.id] || []
+    return (
+      <>
+        <p className="mt-1">{message.content}</p>
+        {attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {attachments.map(attachment => (
+              <AttachmentPreview key={attachment.id} attachment={attachment} />
+            ))}
+          </div>
+        )}
+        <MessageReactions message={message} />
+      </>
+    )
+  }
+
   /**
    * Render
    */
@@ -295,8 +347,7 @@ export function ThreadPanel({
                   {format(new Date(parentMessage.createdAt), "p")}
                 </span>
               </div>
-              <p className="mt-1">{parentMessage.content}</p>
-              <MessageReactions message={parentMessage} />
+              <MessageContent message={parentMessage} />
             </div>
           </div>
           <Separator />
@@ -320,8 +371,7 @@ export function ThreadPanel({
                       {format(date || new Date(), "p")}
                     </span>
                   </div>
-                  <p className="mt-1">{reply.content}</p>
-                  <MessageReactions message={reply} />
+                  <MessageContent message={reply} />
                 </div>
               </div>
             )

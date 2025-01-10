@@ -1,5 +1,6 @@
 "use client"
 
+import { getAttachmentsAction } from "@/actions/db/attachments-actions"
 import {
   addDirectMessageReactionAction,
   getDirectChatMessagesAction,
@@ -11,6 +12,7 @@ import {
   removeReactionAction
 } from "@/actions/db/messages-actions"
 import { getUserAction, getUsersByIdsAction } from "@/actions/db/users-actions"
+import { AttachmentPreview } from "@/components/ui/attachment-preview"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -18,7 +20,12 @@ import {
   PopoverTrigger
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
+import {
+  SelectAttachment,
+  SelectDirectMessage,
+  SelectMessage,
+  SelectUser
+} from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { MessageSquare, Smile } from "lucide-react"
@@ -58,6 +65,9 @@ export function MessageList({
   >([])
   const [userMap, setUserMap] = useState<Record<string, SelectUser>>({})
   const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
+  const [attachmentsMap, setAttachmentsMap] = useState<
+    Record<string, SelectAttachment[]>
+  >({})
 
   const conversationId = type === "channel" ? channelId : chatId
 
@@ -121,6 +131,7 @@ export function MessageList({
         const msgs = res.data.map(transformMessage)
         setMessages(msgs)
         await bulkLoadUsers(msgs)
+        await bulkLoadAttachments(msgs)
       }
     } else if (type === "direct" && chatId) {
       const res = await getDirectChatMessagesAction(chatId)
@@ -128,6 +139,7 @@ export function MessageList({
         const msgs = res.data.map(transformMessage)
         setMessages(msgs)
         await bulkLoadUsers(msgs)
+        await bulkLoadAttachments(msgs)
       }
     }
   }
@@ -153,6 +165,25 @@ export function MessageList({
         updateMap[u.id] = u
       })
       setUserMap(updateMap)
+    }
+  }
+
+  async function bulkLoadAttachments(
+    msgs: (SelectMessage | SelectDirectMessage)[]
+  ) {
+    for (const msg of msgs) {
+      if (!attachmentsMap[msg.id]) {
+        const res = await getAttachmentsAction(
+          type === "channel" ? msg.id : undefined,
+          type === "direct" ? msg.id : undefined
+        )
+        if (res.isSuccess) {
+          setAttachmentsMap(prev => ({
+            ...prev,
+            [msg.id]: res.data
+          }))
+        }
+      }
     }
   }
 
@@ -200,6 +231,7 @@ export function MessageList({
               : (message as SelectDirectMessage).senderId
           const user = userMap[messageUserId]
           const displayName = user?.username || "Loading..."
+          const attachments = attachmentsMap[message.id] || []
 
           return (
             <div key={message.id} className="flex items-start gap-4">
@@ -211,15 +243,15 @@ export function MessageList({
                   </span>
                 </div>
                 <p className="mt-1">{message.content}</p>
-                {message.fileUrl && (
-                  <a
-                    href={message.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-sm text-blue-500 hover:underline"
-                  >
-                    {message.fileName}
-                  </a>
+                {attachments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {attachments.map(attachment => (
+                      <AttachmentPreview
+                        key={attachment.id}
+                        attachment={attachment}
+                      />
+                    ))}
+                  </div>
                 )}
                 <div className="mt-2 flex items-center gap-2">
                   <Popover

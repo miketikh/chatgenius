@@ -17,6 +17,7 @@ import {
 } from "@/db/schema"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
+import { attachmentsTable } from "./schema/attachments-schema"
 
 const connectionString = process.env.DATABASE_URL!
 const client = postgres(connectionString)
@@ -32,6 +33,7 @@ export const db = drizzle(client, {
 
     // New:
     workspaces: workspacesTable,
-    workspaceMembers: workspaceMembersTable
+    workspaceMembers: workspaceMembersTable,
+    attachments: attachmentsTable
   }
 })
