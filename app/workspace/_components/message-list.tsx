@@ -13,7 +13,6 @@ import {
 } from "@/actions/db/messages-actions"
 import { getUserAction, getUsersByIdsAction } from "@/actions/db/users-actions"
 import { AttachmentPreview } from "@/components/ui/attachment-preview"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/popover"
 import { SafeHtml } from "@/components/ui/safe-html"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import {
   SelectAttachment,
   SelectDirectMessage,
@@ -30,7 +30,7 @@ import {
 } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
-import { MessageSquare, Smile, User } from "lucide-react"
+import { MessageSquare, Smile } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
 
@@ -259,12 +259,7 @@ export function MessageList({
 
           return (
             <div key={message.id} className="flex items-start gap-4">
-              <Avatar className="size-8">
-                <AvatarImage src={user?.imageUrl || undefined} />
-                <AvatarFallback>
-                  <User className="size-4" />
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar user={user} size="md" />
 
               <div className="flex-1">
                 <div className="flex items-center gap-2">
@@ -319,20 +314,6 @@ export function MessageList({
                       <span className="ml-1 text-xs">{message.replyCount}</span>
                     )}
                   </Button>
-                  {Object.entries(
-                    (message.reactions as Record<string, string[]>) || {}
-                  ).map(([emoji, users]) => (
-                    <Button
-                      key={emoji}
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 gap-1 px-2"
-                      onClick={() => handleReaction(message.id, emoji)}
-                    >
-                      {emoji}
-                      <span className="text-xs">{users.length}</span>
-                    </Button>
-                  ))}
                 </div>
               </div>
             </div>

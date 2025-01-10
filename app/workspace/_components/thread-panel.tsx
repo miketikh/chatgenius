@@ -24,6 +24,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { SafeHtml } from "@/components/ui/safe-html"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import {
   SelectAttachment,
   SelectDirectMessage,
@@ -60,10 +61,18 @@ function transformMessage<T extends { createdAt?: string | Date }>(msg: T) {
 function getMessageUsername(
   message: SelectMessage | SelectDirectMessage
 ): string {
-  if ("username" in message) {
-    return message.username
+  if ("userId" in message && "username" in message) {
+    return (message as SelectMessage & { username: string }).username
   }
-  return message.senderUsername
+  return (message as SelectDirectMessage & { senderUsername: string })
+    .senderUsername
+}
+
+function getUserId(message: SelectMessage | SelectDirectMessage): string {
+  if ("userId" in message) {
+    return message.userId
+  }
+  return message.senderId
 }
 
 export function ThreadPanel({
@@ -97,11 +106,8 @@ export function ThreadPanel({
         setReplies(prev => [...prev, transformed])
 
         // Also load user if missing
-        if (
-          !userMap[
-            transformed.userId || (transformed as SelectDirectMessage).senderId
-          ]
-        ) {
+        const messageUserId = getUserId(transformed)
+        if (!userMap[messageUserId]) {
           await bulkLoadUsers([transformed])
         }
       }
@@ -197,7 +203,6 @@ export function ThreadPanel({
       await createThreadMessageAction({
         channelId: pm.channelId,
         userId,
-        username: getMessageUsername(pm),
         content: content.trim(),
         parentId: pm.id
       })
@@ -206,7 +211,6 @@ export function ThreadPanel({
       await createDirectThreadMessageAction({
         chatId: pm.chatId,
         senderId: userId,
-        senderUsername: getMessageUsername(pm),
         content: content.trim(),
         parentId: pm.id
       })
@@ -283,13 +287,6 @@ export function ThreadPanel({
     </div>
   )
 
-  const getUserId = (message: SelectMessage | SelectDirectMessage) => {
-    if ("userId" in message) {
-      return message.userId
-    }
-    return message.senderId
-  }
-
   const MessageContent = ({
     message
   }: {
@@ -332,6 +329,7 @@ export function ThreadPanel({
         <div className="space-y-4">
           {/* Parent message */}
           <div className="flex items-start gap-4">
+            <UserAvatar user={userMap[getUserId(parentMessage)]} size="md" />
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-semibold">
@@ -358,6 +356,7 @@ export function ThreadPanel({
 
             return (
               <div key={reply.id} className="flex items-start gap-4">
+                <UserAvatar user={userMap[userKey]} size="md" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{displayName}</span>
