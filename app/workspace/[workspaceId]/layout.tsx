@@ -29,7 +29,7 @@ export default async function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const { userId } = await auth()
   if (!userId) {
-    redirect("/sign-in")
+    redirect("/")
   }
 
   const { workspaceId } = await Promise.resolve(params)
