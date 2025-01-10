@@ -1,5 +1,7 @@
 "use server"
 
+import { getUserChannelsAction } from "@/actions/db/channels-actions"
+import { getUserDirectChatsAction } from "@/actions/db/direct-messages-actions"
 import { updateLastWorkspaceAction } from "@/actions/db/profiles-actions"
 import { getUserAction } from "@/actions/db/users-actions"
 import {
@@ -28,7 +30,7 @@ export default async function WorkspaceLayout({
     redirect("/sign-in")
   }
 
-  const { workspaceId } = await Promise.resolve(params)
+  const { workspaceId } = params
 
   // Get the user
   const userRes = await getUserAction(userId)
@@ -51,6 +53,15 @@ export default async function WorkspaceLayout({
   // Update last used workspace
   await updateLastWorkspaceAction(userId, workspaceId)
 
+  // **NEW**: Fetch channels / direct chats on the server
+  const userChannelsRes = await getUserChannelsAction(userId, workspaceId)
+  const userDirectChatsRes = await getUserDirectChatsAction(userId, workspaceId)
+
+  const channels = userChannelsRes.isSuccess ? userChannelsRes.data : []
+  const directChats = userDirectChatsRes.isSuccess
+    ? userDirectChatsRes.data
+    : []
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Left sidebar with workspaces */}
@@ -72,7 +83,13 @@ export default async function WorkspaceLayout({
         {/* Content area with sidebar and main content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Main sidebar with channels/DMs */}
-          <Sidebar userId={userId} workspaceId={workspaceId} />
+          {/* Pass pre-fetched channels and directChats down */}
+          <Sidebar
+            userId={userId}
+            workspaceId={workspaceId}
+            serverChannels={channels}
+            serverDirectChats={directChats}
+          />
 
           {/* Page content */}
           <main className="flex-1 overflow-y-auto p-6">{children}</main>

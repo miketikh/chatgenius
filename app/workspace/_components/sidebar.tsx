@@ -2,13 +2,9 @@
 
 import {
   createChannelAction,
-  deleteChannelAction,
-  getUserChannelsAction
+  deleteChannelAction
 } from "@/actions/db/channels-actions"
-import {
-  createDirectChatAction,
-  getUserDirectChatsAction
-} from "@/actions/db/direct-messages-actions"
+import { createDirectChatAction } from "@/actions/db/direct-messages-actions"
 import { getUserAction, searchUsersAction } from "@/actions/db/users-actions"
 import { getWorkspaceAction } from "@/actions/db/workspaces-actions"
 import { Button } from "@/components/ui/button"
@@ -44,13 +40,25 @@ import { useCallback, useEffect, useState } from "react"
 interface SidebarProps {
   userId: string
   workspaceId: string
+
+  // Now we receive pre-fetched channels and direct chats from the server
+  serverChannels?: SelectChannel[]
+  serverDirectChats?: SelectDirectChat[]
 }
 
-export function Sidebar({ userId, workspaceId }: SidebarProps) {
+export function Sidebar({
+  userId,
+  workspaceId,
+  serverChannels = [],
+  serverDirectChats = []
+}: SidebarProps) {
   const router = useRouter()
   const params = useParams()
-  const [channels, setChannels] = useState<SelectChannel[]>([])
-  const [directChats, setDirectChats] = useState<SelectDirectChat[]>([])
+
+  // We store them as state but start from server props
+  const [channels, setChannels] = useState<SelectChannel[]>(serverChannels)
+  const [directChats, setDirectChats] =
+    useState<SelectDirectChat[]>(serverDirectChats)
   const [chatUsers, setChatUsers] = useState<{ [key: string]: SelectUser }>({})
   const [workspace, setWorkspace] = useState<Pick<SelectWorkspace, "name">>()
   const [isCreatingChannel, setIsCreatingChannel] = useState(false)
@@ -67,14 +75,14 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
   )
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
-  const workspaceParam = params?.workspaceId
   const channelParam = params?.channelId
   const chatParam = params?.chatId
 
-  // Realtime hooks, but filter by workspace if desired
+  // Realtime subscriptions (optional).
+  // These do NOT cause repeated server fetch calls, they just sync new data in real-time.
   useRealtimeTable<SelectChannel>({
     table: "channels",
-    filter: `workspace_id=eq.${workspaceId}`, // only subscribe to channels in this workspace
+    filter: `workspace_id=eq.${workspaceId}`,
     onInsert: useCallback((newChannel: SelectChannel) => {
       setChannels(prev => [...prev, newChannel])
     }, []),
@@ -104,53 +112,51 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
     }, [])
   })
 
+  // Load basic workspace data once, if needed:
   useEffect(() => {
-    loadChannels()
-    loadDirectChats()
+    let isMounted = true
+    async function loadWorkspace() {
+      const res = await getWorkspaceAction(workspaceId)
+      if (res.isSuccess && isMounted) {
+        setWorkspace({ name: res.data.name })
+      }
+    }
     loadWorkspace()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      isMounted = false
+    }
   }, [workspaceId])
 
-  async function loadChannels() {
-    if (!userId || !workspaceId) return
-    const res = await getUserChannelsAction(userId, workspaceId)
-    if (res.isSuccess) {
-      setChannels(res.data)
-    }
-  }
-
-  async function loadDirectChats() {
-    if (!userId || !workspaceId) return
-    const res = await getUserDirectChatsAction(userId, workspaceId)
-    if (res.isSuccess) {
-      setDirectChats(res.data)
-      const userPromises = res.data.map(async chat => {
+  // For direct chats, we need the "other user" details
+  useEffect(() => {
+    async function fillChatUsers() {
+      // Collect user IDs
+      const userIds: string[] = []
+      for (const chat of directChats) {
         const otherUserId =
           chat.user1Id === userId ? chat.user2Id : chat.user1Id
-        const userRes = await getUserAction(otherUserId)
-        if (userRes?.isSuccess) {
-          return { [otherUserId]: userRes.data }
+        // Avoid duplicates in multiple chats
+        if (!chatUsers[otherUserId]) {
+          userIds.push(otherUserId)
         }
-        return {}
+      }
+      if (userIds.length === 0) return
+
+      // Load them from DB
+      const fetches = await Promise.all(userIds.map(id => getUserAction(id)))
+      const newMap: Record<string, SelectUser> = {}
+      fetches.forEach(fr => {
+        if (fr.isSuccess && fr.data) {
+          newMap[fr.data.id] = fr.data
+        }
       })
-      const userResults = await Promise.all(userPromises)
-      const newChatUsers = userResults.reduce(
-        (acc, result) => ({ ...acc, ...result }),
-        {}
-      )
-      setChatUsers(newChatUsers)
-    }
-  }
 
-  async function loadWorkspace() {
-    if (!workspaceId) return
-    const res = await getWorkspaceAction(workspaceId)
-    if (res.isSuccess) {
-      const { name } = res.data
-      setWorkspace({ name })
+      setChatUsers(prev => ({ ...prev, ...newMap }))
     }
-  }
+    fillChatUsers()
+  }, [directChats, userId, chatUsers])
 
+  // Creating a channel
   async function handleCreateChannel(e: React.FormEvent) {
     e.preventDefault()
     if (!newChannelName.trim()) return
@@ -166,10 +172,12 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
     if (res.isSuccess) {
       setNewChannelName("")
       setIsCreatingChannel(false)
+      // Jump to newly created channel
       router.push(`/workspace/${workspaceId}/channel/${res.data.id}`)
     }
   }
 
+  // Creating a direct message chat
   async function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
     const query = e.target.value
     setSearchQuery(query)
@@ -199,6 +207,7 @@ export function Sidebar({ userId, workspaceId }: SidebarProps) {
     }
   }
 
+  // Deleting a channel
   async function handleDeleteChannel() {
     if (!channelToDelete) return
     const res = await deleteChannelAction(channelToDelete.id)
