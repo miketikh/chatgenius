@@ -34,6 +34,7 @@ interface RichTextEditorProps {
   onSend: (content: string, file?: File) => void
   disabled?: boolean
   accept?: Record<string, string[]>
+  placeholder?: string
 }
 
 export function RichTextEditor({
@@ -42,7 +43,8 @@ export function RichTextEditor({
   accept = {
     "image/*": [],
     "application/pdf": []
-  }
+  },
+  placeholder = "Type a message..."
 }: RichTextEditorProps) {
   const [content, setContent] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -65,7 +67,8 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm min-h-[100px] max-w-none p-2 focus-within:outline-none text-foreground prose-a:text-blue-400"
+          "prose prose-sm min-h-[100px] max-w-none p-2 focus-within:outline-none text-foreground prose-a:text-blue-400",
+        placeholder
       }
     }
   })

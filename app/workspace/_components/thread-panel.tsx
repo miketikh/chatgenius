@@ -20,9 +20,10 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
+import { SafeHtml } from "@/components/ui/safe-html"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Textarea } from "@/components/ui/textarea"
 import {
   SelectAttachment,
   SelectDirectMessage,
@@ -32,7 +33,7 @@ import {
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { Smile, X } from "lucide-react"
-import React, { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
 
 interface ThreadPanelProps {
@@ -76,7 +77,6 @@ export function ThreadPanel({
   const [replies, setReplies] = useState<
     (SelectMessage | SelectDirectMessage)[]
   >([])
-  const [newReply, setNewReply] = useState("")
   const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
   const [attachmentsMap, setAttachmentsMap] = useState<
     Record<string, SelectAttachment[]>
@@ -189,35 +189,29 @@ export function ThreadPanel({
   /**
    * Handle posting a new reply
    */
-  const handleSubmitReply = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      if (!newReply.trim()) return
+  const handleSubmitReply = async (content: string, file?: File) => {
+    if (!content.trim() && !file) return
 
-      if (type === "channel") {
-        const pm = parentMessage as SelectMessage
-        await createThreadMessageAction({
-          channelId: pm.channelId,
-          userId,
-          username: getMessageUsername(pm),
-          content: newReply,
-          parentId: pm.id
-        })
-      } else {
-        const pm = parentMessage as SelectDirectMessage
-        await createDirectThreadMessageAction({
-          chatId: pm.chatId,
-          senderId: userId,
-          senderUsername: getMessageUsername(pm),
-          content: newReply,
-          parentId: pm.id
-        })
-      }
-
-      setNewReply("")
-    },
-    [newReply, parentMessage, type, userId]
-  )
+    if (type === "channel") {
+      const pm = parentMessage as SelectMessage
+      await createThreadMessageAction({
+        channelId: pm.channelId,
+        userId,
+        username: getMessageUsername(pm),
+        content: content.trim(),
+        parentId: pm.id
+      })
+    } else {
+      const pm = parentMessage as SelectDirectMessage
+      await createDirectThreadMessageAction({
+        chatId: pm.chatId,
+        senderId: userId,
+        senderUsername: getMessageUsername(pm),
+        content: content.trim(),
+        parentId: pm.id
+      })
+    }
+  }
 
   async function handleReaction(messageId: string, emoji: string) {
     setOpenEmojiPicker(null)
@@ -304,7 +298,7 @@ export function ThreadPanel({
     const attachments = attachmentsMap[message.id] || []
     return (
       <>
-        <p className="mt-1">{message.content}</p>
+        <SafeHtml content={message.content} />
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {attachments.map(attachment => (
@@ -379,19 +373,17 @@ export function ThreadPanel({
         </div>
       </ScrollArea>
 
-      {/* Form to submit a new reply */}
-      <form onSubmit={handleSubmitReply} className="border-t p-4">
-        <Textarea
-          value={newReply}
-          onChange={e => setNewReply(e.target.value)}
-          placeholder="Reply in thread..."
-          className="mb-2"
-          rows={3}
+      {/* Replace the form with RichTextEditor */}
+      <div className="border-t p-4">
+        <RichTextEditor
+          onSend={handleSubmitReply}
+          placeholder="Reply to thread..."
+          accept={{
+            "image/*": [],
+            "application/pdf": []
+          }}
         />
-        <Button type="submit" disabled={!newReply.trim()}>
-          Reply
-        </Button>
-      </form>
+      </div>
     </div>
   )
 }
