@@ -35,8 +35,11 @@ export function useRealtimeTable<T>({
   useEffect(() => {
     if (!filter) return
 
+    // Create a unique channel name by combining table and filter
+    const channelName = `${table}-${filter}`
+
     const channel = supabase
-      .channel(table)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table, filter },
