@@ -30,7 +30,7 @@ import {
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { MessageSquare, Smile } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
 
 function transformMessage<
@@ -61,6 +61,7 @@ export function MessageList({
   userId,
   onThreadSelect
 }: MessageListProps) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [messages, setMessages] = useState<
     (SelectMessage | SelectDirectMessage)[]
   >([])
@@ -71,6 +72,17 @@ export function MessageList({
   >({})
 
   const conversationId = type === "channel" ? channelId : chatId
+
+  const scrollToBottom = useCallback(() => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]"
+      )
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [])
 
   const handleInsert = useCallback(
     async (newRecord: SelectMessage | SelectDirectMessage) => {
@@ -88,8 +100,11 @@ export function MessageList({
           setUserMap(prev => ({ ...prev, [messageUserId]: res.data }))
         }
       }
+
+      // Scroll to bottom when new message arrives
+      setTimeout(scrollToBottom, 100)
     },
-    [userMap, type]
+    [userMap, type, scrollToBottom]
   )
 
   const handleUpdate = useCallback(
@@ -124,6 +139,13 @@ export function MessageList({
   useEffect(() => {
     loadMessages()
   }, [conversationId, type])
+
+  // Add effect to scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom()
+    }
+  }, [messages, scrollToBottom])
 
   async function loadMessages() {
     if (type === "channel" && channelId) {
@@ -217,7 +239,7 @@ export function MessageList({
   }
 
   return (
-    <ScrollArea className="flex-1 p-4">
+    <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
       <div className="space-y-4">
         {messages.map(message => {
           const date =
