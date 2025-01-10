@@ -3,11 +3,13 @@
 import { getAttachmentsAction } from "@/actions/db/attachments-actions"
 import {
   addDirectMessageReactionAction,
+  deleteDirectMessageAction,
   getDirectChatMessagesAction,
   removeDirectMessageReactionAction
 } from "@/actions/db/direct-messages-actions"
 import {
   addReactionAction,
+  deleteMessageAction,
   getChannelMessagesAction,
   removeReactionAction
 } from "@/actions/db/messages-actions"
@@ -28,8 +30,9 @@ import {
 } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
-import { MessageSquare, Smile } from "lucide-react"
+import { MessageSquare, Minus, Smile } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { DeleteMessageModal } from "./delete-message-modal"
 import { EmojiPicker } from "./emoji-picker"
 import { transformMessage, useUserMap } from "./user-map-provider"
 
@@ -56,6 +59,9 @@ export function MessageList({
   const [attachmentsMap, setAttachmentsMap] = useState<
     Record<string, SelectAttachment[]>
   >({})
+  const [messageToDelete, setMessageToDelete] = useState<
+    SelectMessage | SelectDirectMessage | null
+  >(null)
 
   const { userMap, bulkLoadUsers } = useUserMap()
 
@@ -219,6 +225,18 @@ export function MessageList({
     }
   }
 
+  async function handleDeleteMessage() {
+    if (!messageToDelete) return
+
+    if (type === "channel") {
+      await deleteMessageAction(messageToDelete.id)
+    } else {
+      await deleteDirectMessageAction(messageToDelete.id)
+    }
+
+    setMessageToDelete(null)
+  }
+
   return (
     <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
       <div className="space-y-4">
@@ -237,8 +255,10 @@ export function MessageList({
           const displayName = user?.username || "Loading..."
           const attachments = attachmentsMap[message.id] || []
 
+          const isAuthor = messageUserId === userId
+
           return (
-            <div key={message.id} className="flex items-start gap-4">
+            <div key={message.id} className="group flex items-start gap-4">
               <UserAvatar user={user} size="md" />
 
               <div className="flex-1">
@@ -247,6 +267,16 @@ export function MessageList({
                   <span className="text-muted-foreground text-xs">
                     {formattedDate}
                   </span>
+                  {isAuthor && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 opacity-0 group-hover:opacity-100"
+                      onClick={() => setMessageToDelete(message)}
+                    >
+                      <Minus className="size-4 text-red-500" />
+                    </Button>
+                  )}
                 </div>
                 <SafeHtml content={message.content} />
                 {attachments.length > 0 && (
@@ -314,6 +344,12 @@ export function MessageList({
           )
         })}
       </div>
+
+      <DeleteMessageModal
+        open={messageToDelete !== null}
+        onOpenChange={open => !open && setMessageToDelete(null)}
+        onConfirm={handleDeleteMessage}
+      />
     </ScrollArea>
   )
 }

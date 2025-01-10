@@ -7,12 +7,14 @@ import {
 import {
   addDirectMessageReactionAction,
   createDirectThreadMessageAction,
+  deleteDirectMessageAction,
   getDirectThreadMessagesAction,
   removeDirectMessageReactionAction
 } from "@/actions/db/direct-messages-actions"
 import {
   addReactionAction,
   createThreadMessageAction,
+  deleteMessageAction,
   getThreadMessagesAction,
   removeReactionAction
 } from "@/actions/db/messages-actions"
@@ -36,8 +38,9 @@ import {
 } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
-import { Smile, X } from "lucide-react"
+import { Minus, Smile, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { DeleteMessageModal } from "./delete-message-modal"
 import { EmojiPicker } from "./emoji-picker"
 import { transformMessage } from "./user-map-provider"
 
@@ -86,6 +89,9 @@ export function ThreadPanel({
   const [attachmentsMap, setAttachmentsMap] = useState<
     Record<string, SelectAttachment[]>
   >({})
+  const [messageToDelete, setMessageToDelete] = useState<
+    SelectMessage | SelectDirectMessage | null
+  >(null)
 
   // We only care about reloading if the parentMessage's ID changes.
   // Make sure the parent doesn't constantly recreate `parentMessage`.
@@ -317,13 +323,27 @@ export function ThreadPanel({
   )
 
   const MessageContent = ({
-    message
+    message,
+    isAuthor
   }: {
     message: SelectMessage | SelectDirectMessage
+    isAuthor: boolean
   }) => {
     const attachments = attachmentsMap[message.id] || []
     return (
       <>
+        <div className="flex items-center gap-2">
+          {isAuthor && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 opacity-0 group-hover:opacity-100"
+              onClick={() => setMessageToDelete(message)}
+            >
+              <Minus className="size-4 text-red-500" />
+            </Button>
+          )}
+        </div>
         <SafeHtml content={message.content} />
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
@@ -335,6 +355,18 @@ export function ThreadPanel({
         <MessageReactions message={message} />
       </>
     )
+  }
+
+  async function handleDeleteMessage() {
+    if (!messageToDelete) return
+
+    if (type === "channel") {
+      await deleteMessageAction(messageToDelete.id)
+    } else {
+      await deleteDirectMessageAction(messageToDelete.id)
+    }
+
+    setMessageToDelete(null)
   }
 
   /**
@@ -357,7 +389,7 @@ export function ThreadPanel({
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {/* Parent message */}
-          <div className="flex items-start gap-4">
+          <div className="group flex items-start gap-4">
             <UserAvatar user={userMap[getUserId(parentMessage)]} size="md" />
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -368,7 +400,10 @@ export function ThreadPanel({
                   {format(new Date(parentMessage.createdAt), "p")}
                 </span>
               </div>
-              <MessageContent message={parentMessage} />
+              <MessageContent
+                message={parentMessage}
+                isAuthor={getUserId(parentMessage) === userId}
+              />
             </div>
           </div>
           <Separator />
@@ -377,6 +412,7 @@ export function ThreadPanel({
           {replies.map(reply => {
             const userKey = getUserId(reply)
             const displayName = userMap[userKey]?.username || "Loading..."
+            const isAuthor = userKey === userId
 
             const date =
               typeof reply.createdAt === "string"
@@ -384,7 +420,7 @@ export function ThreadPanel({
                 : reply.createdAt
 
             return (
-              <div key={reply.id} className="flex items-start gap-4">
+              <div key={reply.id} className="group flex items-start gap-4">
                 <UserAvatar user={userMap[userKey]} size="md" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -393,7 +429,7 @@ export function ThreadPanel({
                       {format(date || new Date(), "p")}
                     </span>
                   </div>
-                  <MessageContent message={reply} />
+                  <MessageContent message={reply} isAuthor={isAuthor} />
                 </div>
               </div>
             )
@@ -412,6 +448,12 @@ export function ThreadPanel({
           }}
         />
       </div>
+
+      <DeleteMessageModal
+        open={messageToDelete !== null}
+        onOpenChange={open => !open && setMessageToDelete(null)}
+        onConfirm={handleDeleteMessage}
+      />
     </div>
   )
 }
