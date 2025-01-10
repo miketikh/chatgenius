@@ -3,10 +3,7 @@
 import { uploadAttachmentAction } from "@/actions/db/attachments-actions"
 import { createDirectMessageAction } from "@/actions/db/direct-messages-actions"
 import { createMessageAction } from "@/actions/db/messages-actions"
-import { Button } from "@/components/ui/button"
-import { FileUpload } from "@/components/ui/file-upload"
-import { Textarea } from "@/components/ui/textarea"
-import { Send } from "lucide-react"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { useState } from "react"
 
 interface MessageInputProps {
@@ -22,13 +19,10 @@ export function MessageInput({
   chatId,
   userId
 }: MessageInputProps) {
-  const [content, setContent] = useState("")
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!content.trim() && !selectedFile) return
+  async function handleSubmit(content: string, file?: File) {
+    if (!content.trim() && !file) return
 
     setIsLoading(true)
     try {
@@ -56,9 +50,9 @@ export function MessageInput({
       }
 
       // Upload file if selected
-      if (selectedFile && messageId) {
+      if (file && messageId) {
         const formData = new FormData()
-        formData.append("file", selectedFile)
+        formData.append("file", file)
 
         await uploadAttachmentAction(
           formData,
@@ -67,9 +61,6 @@ export function MessageInput({
           type === "direct" ? messageId : undefined
         )
       }
-
-      setContent("")
-      setSelectedFile(null)
     } catch (error) {
       console.error("Error sending message:", error)
     } finally {
@@ -78,48 +69,15 @@ export function MessageInput({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4 p-4">
-      {selectedFile && (
-        <FileUpload
-          selectedFile={selectedFile}
-          onFileSelect={setSelectedFile}
-          onRemove={() => setSelectedFile(null)}
-          accept={{
-            "image/*": [],
-            "application/pdf": []
-          }}
-        />
-      )}
-
-      <div className="flex items-center gap-2">
-        <Textarea
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder="Type a message..."
-          className="resize-none"
-          rows={1}
-        />
-
-        {!selectedFile && (
-          <FileUpload
-            selectedFile={selectedFile}
-            onFileSelect={setSelectedFile}
-            onRemove={() => setSelectedFile(null)}
-            accept={{
-              "image/*": [],
-              "application/pdf": []
-            }}
-          />
-        )}
-
-        <Button
-          type="submit"
-          size="icon"
-          disabled={isLoading || (!content.trim() && !selectedFile)}
-        >
-          <Send className="size-4" />
-        </Button>
-      </div>
-    </form>
+    <div className="p-4">
+      <RichTextEditor
+        onSend={handleSubmit}
+        disabled={isLoading}
+        accept={{
+          "image/*": [],
+          "application/pdf": []
+        }}
+      />
+    </div>
   )
 }

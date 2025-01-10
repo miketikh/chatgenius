@@ -8,32 +8,24 @@ import {
     messagesTable,
     usersTable
 } from "@/db/schema"
+import { sanitizeContent } from "@/lib/utils/sanitize"
 import { ActionState } from "@/types"
 import { and, asc, eq, isNull, sql } from "drizzle-orm"
 
 export async function createMessageAction(
-  message: InsertMessage
-): Promise<ActionState<SelectMessage & { username: string }>> {
+  data: InsertMessage
+): Promise<ActionState<SelectMessage>> {
   try {
+    const sanitizedContent = sanitizeContent(data.content)
     const [newMessage] = await db
       .insert(messagesTable)
-      .values(message)
+      .values({ ...data, content: sanitizedContent })
       .returning()
-
-    // Get the username
-    const user = await db.query.users.findFirst({
-      where: eq(usersTable.id, message.userId),
-      columns: { username: true }
-    })
-
-    if (!user) {
-      return { isSuccess: false, message: "User not found" }
-    }
 
     return {
       isSuccess: true,
       message: "Message created successfully",
-      data: { ...newMessage, username: user.username }
+      data: newMessage
     }
   } catch (error) {
     console.error("Error creating message:", error)

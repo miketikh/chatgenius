@@ -19,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover"
+import { SafeHtml } from "@/components/ui/safe-html"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   SelectAttachment,
@@ -242,7 +243,7 @@ export function MessageList({
                     {formattedDate}
                   </span>
                 </div>
-                <p className="mt-1">{message.content}</p>
+                <SafeHtml content={message.content} />
                 {attachments.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {attachments.map(attachment => (
