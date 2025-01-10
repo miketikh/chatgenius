@@ -30,7 +30,7 @@ export default async function WorkspaceLayout({
     redirect("/sign-in")
   }
 
-  const { workspaceId } = params
+  const { workspaceId } = await Promise.resolve(params)
 
   // Get the user
   const userRes = await getUserAction(userId)

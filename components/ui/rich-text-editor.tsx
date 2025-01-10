@@ -70,7 +70,8 @@ export function RichTextEditor({
           "prose prose-sm min-h-[100px] max-w-none p-2 focus-within:outline-none text-foreground prose-a:text-blue-400",
         placeholder
       }
-    }
+    },
+    immediatelyRender: false
   })
 
   const handleFileUpload = () => {
