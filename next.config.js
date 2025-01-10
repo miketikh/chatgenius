@@ -33,6 +33,11 @@ const nextConfig = {
   },
   devIndicators: {
     appIsrStatus: false
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb"
+    }
   }
 }
 
