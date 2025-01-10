@@ -1,6 +1,6 @@
 "use client"
 
-import { updateUserAction } from "@/actions/db/users-actions"
+import { upsertPresenceAction } from "@/actions/db/presence-actions"
 import {
   createWorkspaceAction,
   getSearchableWorkspacesAction,
@@ -27,7 +27,8 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@/components/ui/popover"
-import { SelectUser, SelectWorkspace } from "@/db/schema"
+import { SelectUser, SelectWorkspace, presenceStatusEnum } from "@/db/schema"
+import { usePresence } from "@/lib/hooks/use-presence"
 import { cn } from "@/lib/utils"
 import { useClerk } from "@clerk/clerk-react"
 import { SignOutButton } from "@clerk/nextjs"
@@ -39,7 +40,8 @@ import {
   MessageSquare,
   Plus,
   Search,
-  Settings
+  Settings,
+  X
 } from "lucide-react"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
@@ -61,9 +63,13 @@ export function WorkspacesSidebar({
   const router = useRouter()
   const pathname = usePathname()
   const clerk = useClerk()
+  const { presenceMap } = usePresence()
   const [showDialog, setShowDialog] = useState(false)
   const [workspaceName, setWorkspaceName] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const [customStatus, setCustomStatus] = useState("")
+  const [customEmoji, setCustomEmoji] = useState("")
+  const [showStatusDialog, setShowStatusDialog] = useState(false)
 
   // Get current workspace ID from the URL
   const currentWorkspaceId = pathname.split("/workspace/")[1]?.split("/")[0]
@@ -109,14 +115,27 @@ export function WorkspacesSidebar({
     )
   }, [searchableWorkspaces, searchQuery])
 
-  async function handleStatusChange(status: "online" | "offline" | "away") {
-    const res = await updateUserAction(userId, { status })
+  async function handleStatusChange(
+    status: (typeof presenceStatusEnum.enumValues)[number],
+    statusText?: string,
+    statusEmoji?: string
+  ) {
+    const res = await upsertPresenceAction(userId, {
+      status,
+      statusText: statusText || null,
+      statusEmoji: statusEmoji || null
+    })
     if (res.isSuccess) {
+      setShowStatusDialog(false)
       router.refresh()
     }
   }
 
-  const statusColors = {
+  const userPresence = presenceMap[userId]
+  const statusColors: Record<
+    (typeof presenceStatusEnum.enumValues)[number],
+    string
+  > = {
     online: "bg-green-500",
     offline: "bg-gray-500",
     away: "bg-yellow-500"
@@ -347,6 +366,59 @@ export function WorkspacesSidebar({
     )
   }
 
+  function renderStatusDialog() {
+    return (
+      <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Custom Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Status Emoji</Label>
+              <Input
+                placeholder="Enter an emoji (e.g. 🎯)"
+                value={customEmoji}
+                onChange={e => setCustomEmoji(e.target.value)}
+                maxLength={2} // Most emojis are 2 chars
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>What's your status?</Label>
+              <Input
+                placeholder="What's happening?"
+                value={customStatus}
+                onChange={e => setCustomStatus(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowStatusDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="w-full"
+                onClick={() =>
+                  handleStatusChange(
+                    userPresence?.status || "online",
+                    customStatus,
+                    customEmoji
+                  )
+                }
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
   return (
     <div className="flex size-full flex-col text-white">
       {/* Workspaces */}
@@ -455,7 +527,7 @@ export function WorkspacesSidebar({
               <div
                 className={cn(
                   "absolute bottom-0 right-0 size-3 rounded-full border-2 border-blue-900",
-                  statusColors[user?.status || "offline"]
+                  statusColors[userPresence?.status || "offline"]
                 )}
               />
             </button>
@@ -482,7 +554,7 @@ export function WorkspacesSidebar({
                 <div
                   className={cn(
                     "absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white",
-                    statusColors[user?.status || "offline"]
+                    statusColors[userPresence?.status || "offline"]
                   )}
                 />
               </div>
@@ -493,6 +565,29 @@ export function WorkspacesSidebar({
                 </span>
               </div>
             </div>
+
+            {userPresence?.statusText && (
+              <div className="border-t px-2 py-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1">
+                    {userPresence.statusEmoji && (
+                      <span>{userPresence.statusEmoji}</span>
+                    )}
+                    <span className="text-muted-foreground text-sm">
+                      {userPresence.statusText}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6"
+                    onClick={() => handleStatusChange(userPresence.status)}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <DropdownMenuSeparator />
 
@@ -512,6 +607,18 @@ export function WorkspacesSidebar({
               <div className="flex items-center gap-2">
                 <div className="size-2 rounded-full bg-gray-500" />
                 Set as offline
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setCustomStatus(userPresence?.statusText || "")
+                setCustomEmoji(userPresence?.statusEmoji || "")
+                setShowStatusDialog(true)
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span>✏️</span>
+                Set custom status
               </div>
             </DropdownMenuItem>
 
@@ -535,6 +642,9 @@ export function WorkspacesSidebar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Status Dialog */}
+      {renderStatusDialog()}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import {
   getUserWorkspacesAction,
   getWorkspaceAction
 } from "@/actions/db/workspaces-actions"
+import { PresenceProvider } from "@/app/workspace/_components/presence-provider"
 import { Sidebar } from "@/app/workspace/_components/sidebar"
 import { TopSearchBar } from "@/app/workspace/_components/top-search-bar"
 import { WorkspacesSidebar } from "@/app/workspace/_components/workspaces-sidebar"
@@ -53,7 +54,7 @@ export default async function WorkspaceLayout({
   // Update last used workspace
   await updateLastWorkspaceAction(userId, workspaceId)
 
-  // **NEW**: Fetch channels / direct chats on the server
+  // Fetch channels / direct chats on the server
   const userChannelsRes = await getUserChannelsAction(userId, workspaceId)
   const userDirectChatsRes = await getUserDirectChatsAction(userId, workspaceId)
 
@@ -62,39 +63,54 @@ export default async function WorkspaceLayout({
     ? userDirectChatsRes.data
     : []
 
+  // Collect user IDs from channels/direct chats
+  // Optionally, we can also include any additional workspace members
+  // For now, just gather from direct chat participants plus the current user
+  const userIdsSet = new Set<string>()
+  userIdsSet.add(userId)
+  directChats.forEach(dc => {
+    userIdsSet.add(dc.user1Id)
+    userIdsSet.add(dc.user2Id)
+  })
+  // If channel members are needed, you'd also gather them here
+  // or do a separate fetch to get all workspace members, etc.
+
+  const presenceUserIds = Array.from(userIdsSet)
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Left sidebar with workspaces */}
-      <div className="w-16 bg-blue-900">
-        <WorkspacesSidebar
-          userId={userId}
-          userWorkspaces={userWorkspacesRes.data}
-          user={userRes.data}
-        />
-      </div>
-
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="flex min-h-12 items-center bg-blue-900 p-2">
-          <TopSearchBar userId={userId} workspaceId={workspaceId} />
-        </div>
-
-        {/* Content area with sidebar and main content */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* Main sidebar with channels/DMs */}
-          {/* Pass pre-fetched channels and directChats down */}
-          <Sidebar
+    <PresenceProvider userIds={presenceUserIds}>
+      <div className="flex h-screen overflow-hidden">
+        {/* Left sidebar with workspaces */}
+        <div className="w-16 bg-blue-900">
+          <WorkspacesSidebar
             userId={userId}
-            workspaceId={workspaceId}
-            serverChannels={channels}
-            serverDirectChats={directChats}
+            userWorkspaces={userWorkspacesRes.data}
+            user={userRes.data}
           />
+        </div>
 
-          {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        {/* Main content */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Top bar */}
+          <div className="flex min-h-12 items-center bg-blue-900 p-2">
+            <TopSearchBar userId={userId} workspaceId={workspaceId} />
+          </div>
+
+          {/* Content area with sidebar and main content */}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Main sidebar with channels/DMs */}
+            <Sidebar
+              userId={userId}
+              workspaceId={workspaceId}
+              serverChannels={channels}
+              serverDirectChats={directChats}
+            />
+
+            {/* Page content */}
+            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          </div>
         </div>
       </div>
-    </div>
+    </PresenceProvider>
   )
 }

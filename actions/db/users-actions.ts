@@ -74,30 +74,6 @@ export async function updateUserAction(
   }
 }
 
-export async function updateUserStatusAction(
-  id: string,
-  status: "online" | "offline" | "away"
-): Promise<ActionState<SelectUser>> {
-  try {
-    const [updatedUser] = await db
-      .update(usersTable)
-      .set({
-        status,
-        lastSeen: new Date()
-      })
-      .where(eq(usersTable.id, id))
-      .returning()
-    return {
-      isSuccess: true,
-      message: "User status updated successfully",
-      data: updatedUser
-    }
-  } catch (error) {
-    console.error("Error updating user status:", error)
-    return { isSuccess: false, message: "Failed to update user status" }
-  }
-}
-
 export async function deleteUserAction(id: string): Promise<ActionState<void>> {
   try {
     await db.delete(usersTable).where(eq(usersTable.id, id))
@@ -136,7 +112,6 @@ export async function searchUsersAction(
     return { isSuccess: false, message: "Failed to search users" }
   }
 }
-// e.g. in "users-actions.ts"
 
 export async function getUsersByIdsAction(
   userIds: string[]

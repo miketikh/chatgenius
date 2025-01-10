@@ -10,6 +10,7 @@ import {
   directChatsTable,
   directMessagesTable,
   messagesTable,
+  presenceTable,
   profilesTable,
   usersTable,
   workspaceMembersTable,
@@ -30,6 +31,7 @@ export const db = drizzle(client, {
     messages: messagesTable,
     directChats: directChatsTable,
     directMessages: directMessagesTable,
+    presence: presenceTable,
 
     // New:
     workspaces: workspacesTable,
