@@ -94,6 +94,18 @@ export function MessageList({
         await bulkLoadUsers([msg])
       }
 
+      // Load attachments for the new message
+      const res = await getAttachmentsAction(
+        type === "channel" ? msg.id : undefined,
+        type === "direct" ? msg.id : undefined
+      )
+      if (res.isSuccess) {
+        setAttachmentsMap(prev => ({
+          ...prev,
+          [msg.id]: res.data
+        }))
+      }
+
       // Scroll to bottom when new message arrives
       setTimeout(scrollToBottom, 100)
     },

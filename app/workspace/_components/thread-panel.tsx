@@ -106,9 +106,21 @@ export function ThreadPanel({
         if (!userMap[messageUserId]) {
           await bulkLoadUsers([transformed])
         }
+
+        // Load attachments for the new message
+        const res = await getAttachmentsAction(
+          type === "channel" ? transformed.id : undefined,
+          type === "direct" ? transformed.id : undefined
+        )
+        if (res.isSuccess) {
+          setAttachmentsMap(prev => ({
+            ...prev,
+            [transformed.id]: res.data
+          }))
+        }
       }
     },
-    [parentId, userMap, bulkLoadUsers]
+    [parentId, userMap, bulkLoadUsers, type]
   )
 
   const handleReplyUpdate = useCallback(
