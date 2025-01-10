@@ -13,6 +13,7 @@ import {
 } from "@/actions/db/messages-actions"
 import { getUserAction, getUsersByIdsAction } from "@/actions/db/users-actions"
 import { AttachmentPreview } from "@/components/ui/attachment-preview"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -29,7 +30,7 @@ import {
 } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
-import { MessageSquare, Smile } from "lucide-react"
+import { MessageSquare, Smile, User } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
 
@@ -258,6 +259,13 @@ export function MessageList({
 
           return (
             <div key={message.id} className="flex items-start gap-4">
+              <Avatar className="size-8">
+                <AvatarImage src={user?.imageUrl || undefined} />
+                <AvatarFallback>
+                  <User className="size-4" />
+                </AvatarFallback>
+              </Avatar>
+
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{displayName}</span>
