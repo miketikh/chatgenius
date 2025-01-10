@@ -14,6 +14,7 @@ import { TopSearchBar } from "@/app/workspace/_components/top-search-bar"
 import { WorkspacesSidebar } from "@/app/workspace/_components/workspaces-sidebar"
 import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
+import { UserMapProvider } from "../_components/user-map-provider"
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode
@@ -79,38 +80,40 @@ export default async function WorkspaceLayout({
 
   return (
     <PresenceProvider userIds={presenceUserIds}>
-      <div className="flex h-screen overflow-hidden">
-        {/* Left sidebar with workspaces */}
-        <div className="w-16 bg-blue-900">
-          <WorkspacesSidebar
-            userId={userId}
-            userWorkspaces={userWorkspacesRes.data}
-            user={userRes.data}
-          />
-        </div>
-
-        {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Top bar */}
-          <div className="flex min-h-12 items-center bg-blue-900 p-2">
-            <TopSearchBar userId={userId} workspaceId={workspaceId} />
-          </div>
-
-          {/* Content area with sidebar and main content */}
-          <div className="flex flex-1 overflow-hidden">
-            {/* Main sidebar with channels/DMs */}
-            <Sidebar
+      <UserMapProvider>
+        <div className="flex h-screen overflow-hidden">
+          {/* Left sidebar with workspaces */}
+          <div className="w-16 bg-blue-900">
+            <WorkspacesSidebar
               userId={userId}
-              workspaceId={workspaceId}
-              serverChannels={channels}
-              serverDirectChats={directChats}
+              userWorkspaces={userWorkspacesRes.data}
+              user={userRes.data}
             />
+          </div>
 
-            {/* Page content */}
-            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          {/* Main content */}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Top bar */}
+            <div className="flex min-h-12 items-center bg-blue-900 p-2">
+              <TopSearchBar userId={userId} workspaceId={workspaceId} />
+            </div>
+
+            {/* Content area with sidebar and main content */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* Main sidebar with channels/DMs */}
+              <Sidebar
+                userId={userId}
+                workspaceId={workspaceId}
+                serverChannels={channels}
+                serverDirectChats={directChats}
+              />
+
+              {/* Page content */}
+              <main className="flex-1 overflow-y-auto p-6">{children}</main>
+            </div>
           </div>
         </div>
-      </div>
+      </UserMapProvider>
     </PresenceProvider>
   )
 }

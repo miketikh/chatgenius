@@ -1,6 +1,9 @@
 "use client"
 
-import { getAttachmentsAction } from "@/actions/db/attachments-actions"
+import {
+  getAttachmentsAction,
+  uploadAttachmentAction
+} from "@/actions/db/attachments-actions"
 import {
   addDirectMessageReactionAction,
   createDirectThreadMessageAction,
@@ -36,6 +39,7 @@ import { format } from "date-fns"
 import { Smile, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
+import { transformMessage } from "./user-map-provider"
 
 interface ThreadPanelProps {
   type: "channel" | "direct"
@@ -48,14 +52,6 @@ interface ThreadPanelProps {
   bulkLoadUsers: (
     msgs: (SelectMessage | SelectDirectMessage)[]
   ) => Promise<void>
-}
-
-function transformMessage<T extends { createdAt?: string | Date }>(msg: T) {
-  const cloned = { ...msg }
-  if (typeof cloned.createdAt === "string") {
-    cloned.createdAt = new Date(cloned.createdAt + "Z")
-  }
-  return cloned
 }
 
 function getMessageUsername(
@@ -198,22 +194,43 @@ export function ThreadPanel({
   const handleSubmitReply = async (content: string, file?: File) => {
     if (!content.trim() && !file) return
 
+    let messageId: string | undefined
+
     if (type === "channel") {
       const pm = parentMessage as SelectMessage
-      await createThreadMessageAction({
+      const res = await createThreadMessageAction({
         channelId: pm.channelId,
         userId,
         content: content.trim(),
         parentId: pm.id
       })
+      if (res.isSuccess) {
+        messageId = res.data.id
+      }
     } else {
       const pm = parentMessage as SelectDirectMessage
-      await createDirectThreadMessageAction({
+      const res = await createDirectThreadMessageAction({
         chatId: pm.chatId,
         senderId: userId,
         content: content.trim(),
         parentId: pm.id
       })
+      if (res.isSuccess) {
+        messageId = res.data.id
+      }
+    }
+
+    // Upload file if selected
+    if (file && messageId) {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      await uploadAttachmentAction(
+        formData,
+        userId,
+        type === "channel" ? messageId : undefined,
+        type === "direct" ? messageId : undefined
+      )
     }
   }
 

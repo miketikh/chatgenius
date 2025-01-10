@@ -11,7 +11,6 @@ import {
   getChannelMessagesAction,
   removeReactionAction
 } from "@/actions/db/messages-actions"
-import { getUserAction, getUsersByIdsAction } from "@/actions/db/users-actions"
 import { AttachmentPreview } from "@/components/ui/attachment-preview"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,27 +24,14 @@ import { UserAvatar } from "@/components/ui/user-avatar"
 import {
   SelectAttachment,
   SelectDirectMessage,
-  SelectMessage,
-  SelectUser
+  SelectMessage
 } from "@/db/schema"
 import { useRealtimeTable } from "@/lib/hooks/use-realtime"
 import { format } from "date-fns"
 import { MessageSquare, Smile } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { EmojiPicker } from "./emoji-picker"
-
-function transformMessage<
-  T extends { createdAt?: string | Date; updatedAt?: string | Date }
->(message: T): T {
-  const cloned = { ...message }
-  if (typeof cloned.createdAt === "string") {
-    cloned.createdAt = new Date(cloned.createdAt + "Z")
-  }
-  if (typeof cloned.updatedAt === "string") {
-    cloned.updatedAt = new Date(cloned.updatedAt + "Z")
-  }
-  return cloned
-}
+import { transformMessage, useUserMap } from "./user-map-provider"
 
 interface MessageListProps {
   type: "channel" | "direct"
@@ -66,11 +52,12 @@ export function MessageList({
   const [messages, setMessages] = useState<
     (SelectMessage | SelectDirectMessage)[]
   >([])
-  const [userMap, setUserMap] = useState<Record<string, SelectUser>>({})
   const [openEmojiPicker, setOpenEmojiPicker] = useState<string | null>(null)
   const [attachmentsMap, setAttachmentsMap] = useState<
     Record<string, SelectAttachment[]>
   >({})
+
+  const { userMap, bulkLoadUsers } = useUserMap()
 
   const conversationId = type === "channel" ? channelId : chatId
 
@@ -87,8 +74,16 @@ export function MessageList({
 
   const handleInsert = useCallback(
     async (newRecord: SelectMessage | SelectDirectMessage) => {
+      // Skip thread messages (messages with a parentId)
+      if (newRecord.parentId) {
+        return
+      }
+
       const msg = transformMessage(newRecord)
-      setMessages(prev => [...prev, msg])
+      setMessages((prev: (SelectMessage | SelectDirectMessage)[]) => [
+        ...prev,
+        msg
+      ])
 
       const messageUserId =
         type === "channel"
@@ -96,16 +91,13 @@ export function MessageList({
           : (msg as SelectDirectMessage).senderId
 
       if (!userMap[messageUserId]) {
-        const res = await getUserAction(messageUserId)
-        if (res?.isSuccess && res.data) {
-          setUserMap(prev => ({ ...prev, [messageUserId]: res.data }))
-        }
+        await bulkLoadUsers([msg])
       }
 
       // Scroll to bottom when new message arrives
       setTimeout(scrollToBottom, 100)
     },
-    [userMap, type, scrollToBottom]
+    [userMap, type, scrollToBottom, bulkLoadUsers]
   )
 
   const handleUpdate = useCallback(
@@ -165,30 +157,6 @@ export function MessageList({
         await bulkLoadUsers(msgs)
         await bulkLoadAttachments(msgs)
       }
-    }
-  }
-
-  async function bulkLoadUsers(msgs: (SelectMessage | SelectDirectMessage)[]) {
-    const uniqueIds = Array.from(
-      new Set(
-        msgs.map(m =>
-          type === "channel"
-            ? (m as SelectMessage).userId
-            : (m as SelectDirectMessage).senderId
-        )
-      )
-    )
-    const missingIds = uniqueIds.filter(id => !userMap[id])
-    if (missingIds.length === 0) return
-
-    const res = await getUsersByIdsAction(missingIds)
-    if (res.isSuccess) {
-      const fetchedUsers = res.data
-      const updateMap = { ...userMap }
-      fetchedUsers.forEach(u => {
-        updateMap[u.id] = u
-      })
-      setUserMap(updateMap)
     }
   }
 
@@ -303,6 +271,20 @@ export function MessageList({
                       />
                     </PopoverContent>
                   </Popover>
+                  {Object.entries(
+                    (message.reactions as Record<string, string[]>) || {}
+                  ).map(([emoji, users]) => (
+                    <Button
+                      key={emoji}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-2"
+                      onClick={() => handleReaction(message.id, emoji)}
+                    >
+                      {emoji}
+                      <span className="text-xs">{users.length}</span>
+                    </Button>
+                  ))}
                   <Button
                     variant="ghost"
                     size="sm"

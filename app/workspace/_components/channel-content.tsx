@@ -1,11 +1,11 @@
 "use client"
 
-import { getUsersByIdsAction } from "@/actions/db/users-actions"
-import { SelectDirectMessage, SelectMessage, SelectUser } from "@/db/schema"
+import { SelectDirectMessage, SelectMessage } from "@/db/schema"
 import { useState } from "react"
 import { MessageInput } from "./message-input"
 import { MessageList } from "./message-list"
 import { ThreadPanel } from "./thread-panel"
+import { useUserMap } from "./user-map-provider"
 
 interface ChannelContentProps {
   type: "channel" | "direct"
@@ -25,31 +25,8 @@ export function ChannelContent({
   const [selectedMessage, setSelectedMessage] = useState<
     SelectMessage | SelectDirectMessage | null
   >(null)
-  const [userMap, setUserMap] = useState<Record<string, SelectUser>>({})
 
-  async function bulkLoadUsers(msgs: (SelectMessage | SelectDirectMessage)[]) {
-    const uniqueIds = Array.from(
-      new Set(
-        msgs.map(m =>
-          type === "channel"
-            ? (m as SelectMessage).userId
-            : (m as SelectDirectMessage).senderId
-        )
-      )
-    )
-    const missingIds = uniqueIds.filter(id => !userMap[id])
-    if (missingIds.length === 0) return
-
-    const res = await getUsersByIdsAction(missingIds)
-    if (res.isSuccess) {
-      const fetchedUsers = res.data
-      const updateMap = { ...userMap }
-      fetchedUsers.forEach(u => {
-        updateMap[u.id] = u
-      })
-      setUserMap(updateMap)
-    }
-  }
+  const { userMap, bulkLoadUsers } = useUserMap()
 
   return (
     <div className="flex h-full">
